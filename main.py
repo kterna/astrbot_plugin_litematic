@@ -3,11 +3,12 @@ import time
 import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+import tempfile
 
 from astrbot import logger
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Star, register, Context
-from astrbot.api.message_components import File
+from astrbot.api.message_components import File, Image as MessageImage
 from astrbot.api.event import MessageChain
 
 # 导入处理litematic的核心模块
@@ -15,17 +16,21 @@ from .core.material.material import Material
 from .core.detail_analysis.detail_analysis import DetailAnalysis
 from litemapy import Schematic
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.0.0", "https://github.com/kterna/astrbot_plugin_litematic")
+# 导入图像渲染相关模块
+from .core.image_render.build_model import World
+from .core.image_render.render2D import Render2D
+
+@register("litematic", "kterna", "读取处理Litematic文件", "1.1.0", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         plugin_dir = os.path.dirname(os.path.abspath(__file__))
-        self.litematic_dir = os.path.join(plugin_dir, "litematic")
+        self.litematic_dir = os.path.join(os.path.dirname(plugin_dir), "litematic")
         os.makedirs(self.litematic_dir, exist_ok=True)
         os.makedirs("temp", exist_ok=True)
         
         self.executor = ThreadPoolExecutor(max_workers=3)
-        self.categories_file = os.path.join(plugin_dir, "litematic", "litematic_categories.json")
+        self.categories_file = os.path.join(self.litematic_dir, "litematic_categories.json")
         self.litematic_categories = []
         os.makedirs(os.path.dirname(self.categories_file), exist_ok=True)
         
@@ -431,3 +436,121 @@ class LitematicPlugin(Star):
         except Exception as e:
             logger.error(f"分析投影信息失败: {e}")
             yield event.plain_result(f"分析投影信息失败: {e}")
+            
+    @filter.command("投影预览", alias=["litematic_preview"])
+    async def litematic_preview(self, event: AstrMessageEvent, category: str = "", filename: str = "", view: str = "combined"):
+        """
+        预览litematic文件的2D渲染效果
+        使用方法：
+        /投影预览 分类名 文件名 - 生成并显示litematic的预览图
+        /投影预览 分类名 文件名 视角 - 生成并显示指定视角的预览图
+        支持的视角: top(俯视图), front(正视图), side(侧视图), combined(综合视图), 
+                north(北面), south(南面), east(东面), west(西面)
+        """
+        # 验证参数
+        if not category or not filename:
+            yield event.plain_result("请指定分类和文件名，例如：/投影预览 建筑 house.litematic")
+            return
+        
+        # 验证分类是否存在
+        if category not in self.litematic_categories:
+            yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(self.litematic_categories)}")
+            return
+            
+        category_dir = os.path.join(self.litematic_dir, category)
+        if not os.path.exists(category_dir):
+            yield event.plain_result(f"分类目录 {category} 不存在，这可能是一个错误")
+            return
+        
+        # 查找文件
+        file_path = os.path.join(category_dir, filename)
+        if not os.path.exists(file_path):
+            # 尝试查找部分匹配的文件名
+            matches = [f for f in os.listdir(category_dir) if filename.lower() in f.lower()]
+            if not matches:
+                yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}")
+                return
+            elif len(matches) == 1:
+                file_path = os.path.join(category_dir, matches[0])
+            else:
+                matches_text = "\n".join([f"- {file}" for file in matches])
+                yield event.plain_result(f"找到多个匹配的文件，请指定更精确的文件名：\n{matches_text}")
+                return
+                
+        try:
+            # 加载litematic文件
+            yield event.plain_result("正在生成预览图，请稍候...")
+            
+            # 使用渲染引擎生成预览图
+            schematic = Schematic.load(file_path)
+            
+            # 1. 构建世界模型
+            world = World()
+            world.add_blocks(schematic)
+            
+            # 2. 初始化2D渲染器
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            resource_base_path = os.path.join(plugin_dir, "resource")
+            special_blocks_config = os.path.join(plugin_dir, "core", "image_render", "Special_blocks.json")
+            
+            renderer = Render2D(
+                world=world,
+                resource_base_path=resource_base_path,
+                special_blocks_config=special_blocks_config
+            )
+            
+            # 3. 根据视角选择渲染方法
+            temp_img_path = None
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                temp_img_path = tmp.name
+                
+                # 确定缩放比例，预防过大的图像
+                scale = 1.0
+                
+                view = view.lower()
+                if view == "top":
+                    image = renderer.render_top_view(scale=scale)
+                    caption = "俯视图 (从上向下看)"
+                elif view == "front" or view == "north":
+                    image = renderer.render_front_view(scale=scale)
+                    caption = "正视图 (北面)"
+                elif view == "side" or view == "east":
+                    image = renderer.render_side_view(scale=scale)
+                    caption = "侧视图 (东面)"
+                elif view == "south":
+                    # 南面是正视图的反面
+                    min_x, max_x, min_y, max_y, min_z, max_z = renderer.engine._get_structure_bounds()
+                    image = renderer.render_front_view(min_x, max_x, min_y, max_y, max_z, scale)
+                    caption = "南面视图"
+                elif view == "west":
+                    # 西面是侧视图的反面
+                    min_x, max_x, min_y, max_y, min_z, max_z = renderer.engine._get_structure_bounds()
+                    image = renderer.render_side_view(min_z, max_z, min_y, max_y, min_x, scale)
+                    caption = "西面视图"
+                else:  # combined或其他情况
+                    image = renderer.render_all_views(scale=scale)
+                    caption = "综合视图 (俯视图 + 正视图 + 侧视图)"
+                
+                # 保存图像到临时文件
+                image.save(temp_img_path, format='PNG')
+            
+            # 4. 发送图像
+            file_name = os.path.basename(file_path)
+            message = MessageChain()
+            message.chain.append(MessageImage.fromFileSystem(temp_img_path))
+            
+            await event.send(message)
+            yield event.plain_result(f"【{file_name}】{caption}")
+            
+            # 删除临时文件
+            try:
+                if temp_img_path and os.path.exists(temp_img_path):
+                    os.unlink(temp_img_path)
+            except Exception:
+                pass
+            
+        except Exception as e:
+            logger.error(f"生成预览图失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            yield event.plain_result(f"生成预览图失败: {e}")
