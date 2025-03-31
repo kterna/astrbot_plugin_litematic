@@ -131,10 +131,8 @@ class LitematicPlugin(Star):
                 
                 # 清理用户状态
                 del self.litematic_download[user_key]
-                return
-                
-        # 未找到文件时的提示
-        yield event.plain_result("未检测到litematic文件，请直接发送.litematic格式的文件")
+                return  
+        return
     
     @filter.command("投影列表",alias=["litematic_list"])
     async def litematic_list(self, event: AstrMessageEvent, category: str = ""):
