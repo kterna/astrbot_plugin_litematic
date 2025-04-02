@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from PIL import Image
+from typing import Optional, Dict, Any, List, Tuple, Union
 import re
 
 from .texture_manager import TextureManager
@@ -13,26 +14,30 @@ class RenderEngine:
     """渲染引擎，协调各组件完成Minecraft结构的渲染工作"""
     
     def __init__(self, world: World, resource_base_path: str = "./resource", 
-                 texture_path: str = None, texture_size=None, 
-                 special_blocks_config="./core/image_render/Special_blocks.json"):
-        self.world = world
-        self.resource_base_path = resource_base_path
+                 texture_path: Optional[str] = None, texture_size: Optional[int] = None, 
+                 special_blocks_config: str = "./core/image_render/Special_blocks.json") -> None:
+        self.world: World = world
+        self.resource_base_path: str = resource_base_path
         
-        self.config_loader = ConfigLoader.get_instance(resource_base_path)
-        self.special_blocks_config = self.config_loader.load_special_blocks_config(special_blocks_config)
-        self.texture_manager = TextureManager(resource_base_path, texture_path, texture_size)
-        self.projection = Projection(world)
-        self.special_renderer = SpecialBlockRenderer()
-        self._debug_counter = 0
+        self.config_loader: ConfigLoader = ConfigLoader.get_instance(resource_base_path)
+        self.special_blocks_config: Dict[str, Any] = self.config_loader.load_special_blocks_config(special_blocks_config)
+        self.texture_manager: TextureManager = TextureManager(resource_base_path, texture_path, texture_size)
+        self.projection: Projection = Projection(world)
+        self.special_renderer: SpecialBlockRenderer = SpecialBlockRenderer()
+        self._debug_counter: int = 0
     
-    def render_top_view(self, min_x=None, max_x=None, min_z=None, max_z=None, scale=1):
+    def render_top_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
+                        min_z: Optional[int] = None, max_z: Optional[int] = None, 
+                        scale: int = 1) -> Image.Image:
         """渲染俯视图"""
         if min_x is None or max_x is None or min_z is None or max_z is None:
             min_x, max_x, min_y, max_y, min_z, max_z = self._get_structure_bounds()
         
         return self.projection.render_top_view(self.texture_manager, min_x, max_x, min_z, max_z, scale)
     
-    def render_front_view(self, min_x=None, max_x=None, min_y=None, max_y=None, z=None, scale=1):
+    def render_front_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
+                          min_y: Optional[int] = None, max_y: Optional[int] = None, 
+                          z: Optional[int] = None, scale: int = 1) -> Image.Image:
         """渲染正视图"""
         if min_x is None or max_x is None or min_y is None or max_y is None:
             min_x, max_x, min_y, max_y, min_z, max_z = self._get_structure_bounds()
@@ -42,7 +47,9 @@ class RenderEngine:
         
         return self.projection.render_front_view(self.texture_manager, min_x, max_x, min_y, max_y, z, scale)
     
-    def render_side_view(self, min_z=None, max_z=None, min_y=None, max_y=None, x=None, scale=1):
+    def render_side_view(self, min_z: Optional[int] = None, max_z: Optional[int] = None, 
+                         min_y: Optional[int] = None, max_y: Optional[int] = None, 
+                         x: Optional[int] = None, scale: int = 1) -> Image.Image:
         """渲染侧视图"""
         if min_z is None or max_z is None or min_y is None or max_y is None:
             min_x, max_x, min_y, max_y, min_z, max_z = self._get_structure_bounds()
@@ -52,7 +59,7 @@ class RenderEngine:
         
         return self.projection.render_side_view(self.texture_manager, min_z, max_z, min_y, max_y, x, scale)
     
-    def render_all_views(self, scale=1):
+    def render_all_views(self, scale: int = 1) -> Image.Image:
         """渲染所有视图并拼接"""
         min_x, max_x, min_y, max_y, min_z, max_z = self._get_structure_bounds()
         
@@ -71,7 +78,7 @@ class RenderEngine:
         
         return combined
     
-    def _get_structure_bounds(self):
+    def _get_structure_bounds(self) -> Tuple[int, int, int, int, int, int]:
         """计算结构的边界坐标"""
         if not self.world.blocks:
             return (0, 0, 0, 0, 0, 0)
@@ -90,7 +97,8 @@ class RenderEngine:
         
         return (int(min_x), int(max_x), int(min_y), int(max_y), int(min_z), int(max_z))
     
-    def process_special_block(self, block_name, texture_name, face, source_texture):
+    def process_special_block(self, block_name: str, texture_name: str, face: str, 
+                              source_texture: Image.Image) -> Image.Image:
         """处理特殊方块的材质变换"""
         if texture_name.startswith("transformed:"):
             parts = texture_name.split(":")
@@ -111,7 +119,7 @@ class RenderEngine:
         
         return source_texture
     
-    def save_image(self, image, output_path, format='PNG'):
+    def save_image(self, image: Image.Image, output_path: str, format: str = 'PNG') -> bool:
         """保存图像到文件"""
         try:
             output_dir = os.path.dirname(output_path)
@@ -123,6 +131,6 @@ class RenderEngine:
         except Exception:
             return False
     
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """清除材质缓存"""
         self.texture_manager.clear_cache() 

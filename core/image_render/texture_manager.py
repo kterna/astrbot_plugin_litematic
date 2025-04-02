@@ -2,25 +2,28 @@ import os
 import json
 from PIL import Image
 import numpy as np
+from typing import Dict, List, Optional, Any, Tuple, Set, Union
 
 class TextureManager:
     """材质管理器，负责加载、缓存和处理Minecraft方块材质"""
     
-    def __init__(self, resource_base_path="./resource", texture_path=None, texture_size=None):
-        self.resource_base_path = resource_base_path
-        self.resourcepack_config = self._load_resourcepack_config()
+    def __init__(self, resource_base_path: str = "./resource", 
+                 texture_path: Optional[str] = None, 
+                 texture_size: Optional[int] = None) -> None:
+        self.resource_base_path: str = resource_base_path
+        self.resourcepack_config: Dict[str, Any] = self._load_resourcepack_config()
         self._setup_texture_paths(texture_path)
         self._setup_texture_size(texture_size)
-        self.texture_cache = {}
-        self.default_texture = self._create_default_texture()
-        self.available_textures = self._load_available_textures()
+        self.texture_cache: Dict[str, Image.Image] = {}
+        self.default_texture: Image.Image = self._create_default_texture()
+        self.available_textures: Dict[str, str] = self._load_available_textures()
     
-    def _setup_texture_paths(self, texture_path):
+    def _setup_texture_paths(self, texture_path: Optional[str]) -> None:
         """设置材质包路径"""
         if texture_path is None:
             selected_pack = self.resourcepack_config.get("selected_pack")
             if selected_pack:
-                self.texture_paths = []
+                self.texture_paths: List[str] = []
                 
                 first_path = os.path.join(self.resource_base_path, "block", selected_pack)
                 if os.path.exists(first_path):
@@ -33,7 +36,7 @@ class TextureManager:
                         if os.path.exists(pack_path):
                             self.texture_paths.append(pack_path)
                 
-                self.texture_path = self.texture_paths[0] if self.texture_paths else os.path.join(self.resource_base_path, "block")
+                self.texture_path: str = self.texture_paths[0] if self.texture_paths else os.path.join(self.resource_base_path, "block")
             else:
                 self.texture_path = os.path.join(self.resource_base_path, "block")
                 self.texture_paths = [self.texture_path]
@@ -41,15 +44,15 @@ class TextureManager:
             self.texture_path = texture_path
             self.texture_paths = [texture_path]
     
-    def _setup_texture_size(self, texture_size):
+    def _setup_texture_size(self, texture_size: Optional[int]) -> None:
         """设置材质尺寸"""
         if texture_size is None:
             selected_pack = self.resourcepack_config.get("selected_pack")
-            self.texture_size = self.resourcepack_config.get("texture_size", {}).get(selected_pack, 16)
+            self.texture_size: int = self.resourcepack_config.get("texture_size", {}).get(selected_pack, 16)
         else:
             self.texture_size = texture_size
     
-    def _load_resourcepack_config(self):
+    def _load_resourcepack_config(self) -> Dict[str, Any]:
         """加载资源包配置文件"""
         config_path = os.path.join(self.resource_base_path, "resourcepack.json")
         try:
@@ -60,7 +63,7 @@ class TextureManager:
         except Exception:
             return self._get_default_resourcepack_config()
     
-    def _get_default_resourcepack_config(self):
+    def _get_default_resourcepack_config(self) -> Dict[str, Any]:
         """返回默认的材质包配置"""
         return {
             "selected_pack": "",
@@ -68,9 +71,9 @@ class TextureManager:
             "texture_size": {}
         }
     
-    def _load_available_textures(self):
+    def _load_available_textures(self) -> Dict[str, str]:
         """加载可用的材质文件列表"""
-        available_textures = {}
+        available_textures: Dict[str, str] = {}
         
         for texture_path in self.texture_paths:
             if os.path.exists(texture_path):
@@ -82,14 +85,15 @@ class TextureManager:
         
         return available_textures
     
-    def _create_default_texture(self, size=None):
+    def _create_default_texture(self, size: Optional[Tuple[int, int]] = None) -> Image.Image:
         """创建默认材质"""
         if size is None:
             size = (self.texture_size, self.texture_size)
         img = Image.new('RGBA', size, (128, 128, 128, 255))
         return img
     
-    def _resize_texture(self, texture, target_size=None):
+    def _resize_texture(self, texture: Image.Image, 
+                        target_size: Optional[Tuple[int, int]] = None) -> Image.Image:
         """调整材质尺寸"""
         if target_size is None:
             target_size = (self.texture_size, self.texture_size)
@@ -99,7 +103,7 @@ class TextureManager:
             
         return texture.resize(target_size, Image.Resampling.NEAREST)
     
-    def get_texture(self, block_name, face="side"):
+    def get_texture(self, block_name: str, face: str = "side") -> Image.Image:
         """获取指定方块和面的材质"""
         cache_key = f"{block_name}:{face}"
         
@@ -117,7 +121,7 @@ class TextureManager:
         
         return texture
     
-    def _load_texture(self, block_name, face="side"):
+    def _load_texture(self, block_name: str, face: str = "side") -> Optional[Image.Image]:
         """加载指定方块面的材质"""
         if ":" in block_name:
             block_name = block_name.split(":")[-1]
@@ -141,9 +145,9 @@ class TextureManager:
         
         return None
     
-    def _generate_texture_names(self, block_name, face):
+    def _generate_texture_names(self, block_name: str, face: str) -> List[str]:
         """生成可能的材质名称列表"""
-        texture_names = []
+        texture_names: List[str] = []
         
         texture_names.append(f"{block_name}_{face}")
         
@@ -163,6 +167,6 @@ class TextureManager:
         
         return texture_names
     
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """清除材质缓存"""
         self.texture_cache = {} 
