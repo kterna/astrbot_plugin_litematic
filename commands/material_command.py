@@ -1,18 +1,20 @@
 import os
-from typing import Dict, Optional, AsyncGenerator, Tuple, List
+import traceback
+from typing import Dict, Optional, Tuple, List
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from litemapy import Schematic
 from ..services.file_manager import FileManager
 from ..services.category_manager import CategoryManager
 from ..core.material.material import Material
+from ..utils.types import CategoryType, FilePath, BlockCounts, EntityCounts, MessageResponse, BlockId
 
 class MaterialCommand:
     def __init__(self, file_manager: FileManager, category_manager: CategoryManager) -> None:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """
         分析litematic文件所需材料
         使用方法：
@@ -37,7 +39,7 @@ class MaterialCommand:
             return
         
         # 获取文件
-        file_path: Optional[str] = self.file_manager.get_litematic_file(category, filename)
+        file_path: Optional[FilePath] = self.file_manager.get_litematic_file(category, filename)
         
         if not file_path:
             yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}")
@@ -53,8 +55,8 @@ class MaterialCommand:
             
             try:
                 # 获取方块和实体统计
-                block_counts: Dict[str, int] = material_analyzer.block_collection(schematic)
-                entity_counts: Dict[str, int] = material_analyzer.entity_collection(schematic)
+                block_counts: BlockCounts = material_analyzer.block_collection(schematic)
+                entity_counts: EntityCounts = material_analyzer.entity_collection(schematic)
                 tile_counts: Dict[str, int] = material_analyzer.tile_collection(schematic)
                 
                 # 格式化结果
@@ -63,7 +65,7 @@ class MaterialCommand:
                 # 添加方块信息
                 if block_counts:
                     result += "方块材料：\n"
-                    sorted_blocks: List[Tuple[str, int]] = sorted(block_counts.items(), key=lambda item: item[1], reverse=True)
+                    sorted_blocks: List[Tuple[BlockId, int]] = sorted(block_counts.items(), key=lambda item: item[1], reverse=True)
                     for block_id, count in sorted_blocks:
                         result += f"- {block_id[10:]}: {count}个\n"
                 else:
@@ -90,12 +92,10 @@ class MaterialCommand:
                 yield event.plain_result(result)
             except Exception as inner_e:
                 logger.error(f"分析材料处理失败: {str(inner_e)}")
-                import traceback
                 logger.error(f"错误详情: {traceback.format_exc()}")
                 yield event.plain_result(f"分析材料处理失败: {str(inner_e)}")
             
         except Exception as e:
             logger.error(f"分析材料失败: {e}")
-            import traceback
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"分析材料失败: {e}") 

@@ -1,15 +1,16 @@
-from typing import List, Union, Optional, Tuple, AsyncGenerator
+from typing import List, Union, Optional, Tuple
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from ..services.category_manager import CategoryManager
 from ..services.file_manager import FileManager
+from ..utils.types import CategoryType, FilePath, MessageResponse
 
 class DeleteCommand:
     def __init__(self, category_manager: CategoryManager, file_manager: FileManager) -> None:
         self.category_manager: CategoryManager = category_manager
         self.file_manager: FileManager = file_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """
         删除litematic文件或分类
         使用方法：

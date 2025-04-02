@@ -1,15 +1,16 @@
-from typing import Optional, AsyncGenerator, Tuple
+from typing import Optional, Tuple
+import os
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import File
-import os
 from ..services.file_manager import FileManager
+from ..utils.types import CategoryType, FilePath, MessageResponse
 
 class GetCommand:
     def __init__(self, file_manager: FileManager) -> None:
         self.file_manager: FileManager = file_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """
         获取litematic文件
         使用方法：
@@ -29,7 +30,7 @@ class GetCommand:
             return
         
         # 获取文件
-        file_path: Optional[str] = self.file_manager.get_litematic_file(category, filename)
+        file_path: Optional[FilePath] = self.file_manager.get_litematic_file(category, filename)
         
         if not file_path:
             yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}")

@@ -1,15 +1,16 @@
-from typing import List, AsyncGenerator
+from typing import List
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from ..services.category_manager import CategoryManager
 from ..services.file_manager import FileManager
+from ..utils.types import CategoryType, MessageResponse
 
 class ListCommand:
     def __init__(self, category_manager: CategoryManager, file_manager: FileManager) -> None:
         self.category_manager: CategoryManager = category_manager
         self.file_manager: FileManager = file_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "") -> MessageResponse:
         """
         列出litematic文件
         使用方法：
@@ -25,7 +26,7 @@ class ListCommand:
         """
         # 列出所有分类
         if not category:
-            categories: List[str] = self.category_manager.get_categories()
+            categories: List[CategoryType] = self.category_manager.get_categories()
             if not categories:
                 yield event.plain_result("还没有任何分类，使用 /投影 分类名 来创建分类")
                 return

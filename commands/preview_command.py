@@ -1,17 +1,19 @@
 import os
-from typing import Dict, List, Optional, AsyncGenerator
+import traceback
+from typing import Dict, List, Optional
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
 from ..services.file_manager import FileManager
 from ..services.render_manager import RenderManager
+from ..utils.types import CategoryType, FilePath, MessageResponse
 
 class PreviewCommand:
     def __init__(self, file_manager: FileManager, render_manager: RenderManager) -> None:
         self.file_manager: FileManager = file_manager
         self.render_manager: RenderManager = render_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "", view_type: str = "combined") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", view_type: str = "combined") -> MessageResponse:
         """
         渲染并预览litematic文件
         
@@ -30,7 +32,7 @@ class PreviewCommand:
             return
         
         # 获取文件路径
-        file_path: Optional[str] = self._get_litematic_file(category, filename)
+        file_path: Optional[FilePath] = self._get_litematic_file(category, filename)
         if not file_path:
             yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}，请检查文件名")
             return
@@ -40,7 +42,7 @@ class PreviewCommand:
             yield event.plain_result("正在生成预览图，请稍候...")
             
             # 渲染litematic文件
-            image_path: str = self.render_manager.render_litematic(file_path, view_type)
+            image_path: FilePath = self.render_manager.render_litematic(file_path, view_type)
             
             # 准备消息链
             message: MessageChain = MessageChain()
@@ -58,7 +60,6 @@ class PreviewCommand:
                 
         except Exception as e:
             logger.error(f"生成预览图像失败: {e}")
-            import traceback
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"生成预览图像失败: {e}")
     
@@ -85,7 +86,7 @@ class PreviewCommand:
         }
         return captions.get(view_type, "综合视图")
     
-    def _get_litematic_file(self, category: str, filename: str) -> Optional[str]:
+    def _get_litematic_file(self, category: CategoryType, filename: str) -> Optional[FilePath]:
         """
         获取litematic文件路径，支持模糊匹配
         
@@ -94,7 +95,7 @@ class PreviewCommand:
             filename: 文件名
             
         Returns:
-            Optional[str]: 文件路径，找不到则返回None
+            Optional[FilePath]: 文件路径，找不到则返回None
         """
         try:
             # 若文件管理器实现了get_litematic_file方法，则使用
@@ -102,14 +103,14 @@ class PreviewCommand:
                 return self.file_manager.get_litematic_file(category, filename)
             
             # 否则，自行实现简单版本
-            litematic_dir: str = self.file_manager.get_litematic_dir()
-            category_dir: str = os.path.join(litematic_dir, category)
+            litematic_dir: FilePath = self.file_manager.get_litematic_dir()
+            category_dir: FilePath = os.path.join(litematic_dir, category)
             
             if not os.path.exists(category_dir):
                 return None
                 
             # 精确匹配
-            file_path: str = os.path.join(category_dir, filename)
+            file_path: FilePath = os.path.join(category_dir, filename)
             if os.path.exists(file_path):
                 return file_path
                 

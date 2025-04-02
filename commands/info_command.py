@@ -1,11 +1,13 @@
 import os
-from typing import List, Optional, AsyncGenerator
+import traceback
+from typing import List, Optional
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from ..core.detail_analysis.detail_analysis import DetailAnalysis
 from litemapy import Schematic
 from ..services.file_manager import FileManager
 from ..services.category_manager import CategoryManager
+from ..utils.types import CategoryType, FilePath, MessageResponse
 
 class InfoCommand:
     """投影信息命令处理器，负责处理查看投影详细信息的命令"""
@@ -20,7 +22,7 @@ class InfoCommand:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """执行投影信息命令
         
         Args:
@@ -37,13 +39,13 @@ class InfoCommand:
             return
         
         # 验证分类是否存在
-        categories: List[str] = self.category_manager.get_categories()
+        categories: List[CategoryType] = self.category_manager.get_categories()
         if category not in categories:
             yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(categories)}")
             return
         
         # 获取文件路径
-        file_path: Optional[str] = self._get_litematic_file(category, filename)
+        file_path: Optional[FilePath] = self._get_litematic_file(category, filename)
         if not file_path:
             yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}，请检查文件名")
             return
@@ -66,11 +68,10 @@ class InfoCommand:
             
         except Exception as e:
             logger.error(f"分析投影文件失败: {e}")
-            import traceback
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"分析投影文件失败: {e}")
     
-    def _get_litematic_file(self, category: str, filename: str) -> Optional[str]:
+    def _get_litematic_file(self, category: CategoryType, filename: str) -> Optional[FilePath]:
         """获取litematic文件路径，支持模糊匹配
         
         Args:
@@ -78,7 +79,7 @@ class InfoCommand:
             filename: 文件名
             
         Returns:
-            Optional[str]: 文件路径，找不到则返回None
+            Optional[FilePath]: 文件路径，找不到则返回None
         """
         try:
             # 若文件管理器实现了get_litematic_file方法，则使用
@@ -86,14 +87,14 @@ class InfoCommand:
                 return self.file_manager.get_litematic_file(category, filename)
             
             # 否则，自行实现简单版本
-            litematic_dir: str = self.file_manager.get_litematic_dir()
-            category_dir: str = os.path.join(litematic_dir, category)
+            litematic_dir: FilePath = self.file_manager.get_litematic_dir()
+            category_dir: FilePath = os.path.join(litematic_dir, category)
             
             if not os.path.exists(category_dir):
                 return None
                 
             # 精确匹配
-            file_path: str = os.path.join(category_dir, filename)
+            file_path: FilePath = os.path.join(category_dir, filename)
             if os.path.exists(file_path):
                 return file_path
                 

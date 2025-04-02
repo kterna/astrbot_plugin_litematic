@@ -1,20 +1,23 @@
 import time
 import os
 import shutil
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any
+
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import File
+
 from ..services.file_manager import FileManager
 from ..services.category_manager import CategoryManager
+from ..utils.types import UploadStatus, UserKey, MessageResponse, CategoryType
 
 class UploadCommand:
     def __init__(self, file_manager: FileManager, category_manager: CategoryManager) -> None:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
-        self.upload_states: Dict[str, Dict[str, Any]] = {}  # 用户上传状态跟踪
+        self.upload_states: Dict[UserKey, UploadStatus] = {}  # 用户上传状态跟踪
     
-    async def execute(self, event: AstrMessageEvent, category: str = "default") -> AsyncGenerator[MessageChain, None]:
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "default") -> MessageResponse:
         """
         上传litematic到指定分类文件夹下
         使用方法：
@@ -44,7 +47,7 @@ class UploadCommand:
             yield event.plain_result(f"创建了新分类: {category}")
             
         # 记录用户上传状态
-        user_key = f"{event.session_id}_{event.get_sender_id()}"
+        user_key: UserKey = f"{event.session_id}_{event.get_sender_id()}"
         self.upload_states[user_key] = {
             "category": category,
             "expire_time": time.time() + 300
@@ -52,7 +55,7 @@ class UploadCommand:
         
         yield event.plain_result(f"请在5分钟内上传.litematic文件到{category}分类")
     
-    async def handle_upload(self, event: AstrMessageEvent) -> AsyncGenerator[MessageChain, None]:
+    async def handle_upload(self, event: AstrMessageEvent) -> MessageResponse:
         """
         处理文件上传事件
         
@@ -62,7 +65,7 @@ class UploadCommand:
         Yields:
             MessageChain: 响应消息
         """
-        user_key = f"{event.session_id}_{event.get_sender_id()}"
+        user_key: UserKey = f"{event.session_id}_{event.get_sender_id()}"
         
         # 验证上传状态
         if user_key not in self.upload_states:
