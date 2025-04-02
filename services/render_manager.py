@@ -1,16 +1,19 @@
 import os
 import tempfile
+from typing import Callable, Dict, Optional, Union, Any
+from PIL import Image as PILImage
 from astrbot import logger
 from ..core.image_render.build_model import World
 from ..core.image_render.render2D import Render2D
 from litemapy import Schematic
+from ..utils.config import Config
 
 class RenderManager:
-    def __init__(self, config):
-        self.config = config
-        self.resource_dir = config.get_resource_dir()
+    def __init__(self, config: Config) -> None:
+        self.config: Config = config
+        self.resource_dir: str = config.get_resource_dir()
     
-    def render_litematic(self, file_path, view_type="combined", scale=1):
+    def render_litematic(self, file_path: str, view_type: str = "combined", scale: int = 1) -> str:
         """
         渲染litematic文件
         
@@ -52,12 +55,21 @@ class RenderManager:
             logger.error(f"渲染litematic文件失败: {e}")
             raise
     
-    def _render_view(self, renderer, view_type, scale):
-        """根据视图类型选择渲染方法"""
+    def _render_view(self, renderer: Render2D, view_type: str, scale: int) -> PILImage.Image:
+        """根据视图类型选择渲染方法
+        
+        Args:
+            renderer: 渲染器实例
+            view_type: 视图类型
+            scale: 缩放比例
+            
+        Returns:
+            PILImage.Image: 渲染后的图像
+        """
         view_type = view_type.lower()
         
         # 视图映射
-        view_renderers = {
+        view_renderers: Dict[str, Callable] = {
             "top": renderer.render_top_view,
             "front": renderer.render_front_view,
             "north": renderer.render_front_view,

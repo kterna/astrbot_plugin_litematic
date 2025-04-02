@@ -1,22 +1,24 @@
 import os
 import json
+from typing import List, Optional
 from astrbot import logger
+from ..utils.config import Config
 
 class CategoryManager:
     """分类管理器，负责litematic文件分类的管理"""
     
-    def __init__(self, config):
+    def __init__(self, config: Config) -> None:
         """初始化分类管理器
         
         Args:
             config: 配置对象
         """
-        self.config = config
-        self.categories_file = config.get_categories_file()
-        self.categories = []
+        self.config: Config = config
+        self.categories_file: str = config.get_categories_file()
+        self.categories: List[str] = []
         self.load_categories()
     
-    def load_categories(self):
+    def load_categories(self) -> None:
         """加载分类列表，如果不存在则创建默认分类"""
         try:
             if os.path.exists(self.categories_file) and os.path.getsize(self.categories_file) > 0:
@@ -31,7 +33,7 @@ class CategoryManager:
             logger.error(f"加载分类列表失败: {e}")
             self.categories = self.config.get_config_value("default_categories", ["建筑", "红石"])
     
-    def save_categories(self):
+    def save_categories(self) -> None:
         """保存分类列表到JSON文件"""
         try:
             with open(self.categories_file, "w", encoding="utf-8") as f:
@@ -40,15 +42,15 @@ class CategoryManager:
         except Exception as e:
             logger.error(f"保存分类列表失败: {e}")
     
-    def get_categories(self):
+    def get_categories(self) -> List[str]:
         """获取所有分类列表
         
         Returns:
-            list: 分类列表
+            List[str]: 分类列表
         """
         return self.categories
     
-    def category_exists(self, category):
+    def category_exists(self, category: str) -> bool:
         """检查分类是否存在
         
         Args:
@@ -59,11 +61,14 @@ class CategoryManager:
         """
         return category in self.categories
     
-    def create_category(self, category):
+    def create_category(self, category: str) -> bool:
         """创建新的分类
         
         Args:
             category: 分类名
+            
+        Returns:
+            bool: 是否成功创建
         """
         if category not in self.categories:
             self.categories.append(category)
@@ -75,7 +80,7 @@ class CategoryManager:
             return True
         return False
     
-    def delete_category(self, category):
+    def delete_category(self, category: str) -> bool:
         """删除分类
         
         Args:

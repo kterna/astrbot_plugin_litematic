@@ -1,17 +1,28 @@
+from typing import List, Union, Optional, Tuple, AsyncGenerator
 from astrbot import logger
-from astrbot.api.event import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent, MessageChain
+from ..services.category_manager import CategoryManager
+from ..services.file_manager import FileManager
 
 class DeleteCommand:
-    def __init__(self, category_manager, file_manager):
-        self.category_manager = category_manager
-        self.file_manager = file_manager
+    def __init__(self, category_manager: CategoryManager, file_manager: FileManager) -> None:
+        self.category_manager: CategoryManager = category_manager
+        self.file_manager: FileManager = file_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = ""):
+    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "") -> AsyncGenerator[MessageChain, None]:
         """
         删除litematic文件或分类
         使用方法：
         /投影删除 分类名 - 删除指定分类及其下所有文件
         /投影删除 分类名 文件名 - 删除指定分类下的文件
+        
+        Args:
+            event: 消息事件
+            category: 分类名称，默认为空字符串
+            filename: 文件名，默认为空字符串
+            
+        Yields:
+            MessageChain: 响应消息
         """
         # 验证参数
         if not category:
@@ -25,11 +36,12 @@ class DeleteCommand:
         
         # 删除整个分类
         if not filename:
-            success = self.category_manager.delete_category(category)
+            success, error = self.file_manager.delete_category(category)
             if success:
+                self.category_manager.delete_category(category)
                 yield event.plain_result(f"已删除分类 {category} 及其下所有文件")
             else:
-                yield event.plain_result(f"删除分类 {category} 失败")
+                yield event.plain_result(f"删除分类 {category} 失败: {error}")
             return
         
         # 删除指定文件

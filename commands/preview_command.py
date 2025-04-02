@@ -1,15 +1,17 @@
 import os
+from typing import Dict, List, Optional, AsyncGenerator
 from astrbot import logger
-from astrbot.api.event import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
-from astrbot.api.event import MessageChain
+from ..services.file_manager import FileManager
+from ..services.render_manager import RenderManager
 
 class PreviewCommand:
-    def __init__(self, file_manager, render_manager):
-        self.file_manager = file_manager
-        self.render_manager = render_manager
+    def __init__(self, file_manager: FileManager, render_manager: RenderManager) -> None:
+        self.file_manager: FileManager = file_manager
+        self.render_manager: RenderManager = render_manager
     
-    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "", view_type: str = "combined"):
+    async def execute(self, event: AstrMessageEvent, category: str = "", filename: str = "", view_type: str = "combined") -> AsyncGenerator[MessageChain, None]:
         """
         渲染并预览litematic文件
         
@@ -18,6 +20,9 @@ class PreviewCommand:
             category: 分类名称
             filename: 文件名
             view_type: 视图类型，支持top/front/side/north/south/east/west/combined
+            
+        Yields:
+            MessageChain: 响应消息
         """
         # 验证参数
         if not category or not filename:
@@ -25,7 +30,7 @@ class PreviewCommand:
             return
         
         # 获取文件路径
-        file_path = self._get_litematic_file(category, filename)
+        file_path: Optional[str] = self._get_litematic_file(category, filename)
         if not file_path:
             yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}，请检查文件名")
             return
@@ -35,10 +40,10 @@ class PreviewCommand:
             yield event.plain_result("正在生成预览图，请稍候...")
             
             # 渲染litematic文件
-            image_path = self.render_manager.render_litematic(file_path, view_type)
+            image_path: str = self.render_manager.render_litematic(file_path, view_type)
             
             # 准备消息链
-            message = MessageChain()
+            message: MessageChain = MessageChain()
             message.chain.append(Image.fromFileSystem(image_path))
             
             # 发送图像
@@ -57,10 +62,18 @@ class PreviewCommand:
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"生成预览图像失败: {e}")
     
-    def _get_view_caption(self, view_type):
-        """获取视图类型对应的说明文字"""
+    def _get_view_caption(self, view_type: str) -> str:
+        """
+        获取视图类型对应的说明文字
+        
+        Args:
+            view_type: 视图类型
+            
+        Returns:
+            str: 说明文字
+        """
         view_type = view_type.lower()
-        captions = {
+        captions: Dict[str, str] = {
             "top": "俯视图 (从上向下看)",
             "front": "正视图 (北面)",
             "north": "正视图 (北面)",
@@ -72,27 +85,36 @@ class PreviewCommand:
         }
         return captions.get(view_type, "综合视图")
     
-    def _get_litematic_file(self, category: str, filename: str):
-        """获取litematic文件路径，支持模糊匹配"""
+    def _get_litematic_file(self, category: str, filename: str) -> Optional[str]:
+        """
+        获取litematic文件路径，支持模糊匹配
+        
+        Args:
+            category: 分类名
+            filename: 文件名
+            
+        Returns:
+            Optional[str]: 文件路径，找不到则返回None
+        """
         try:
             # 若文件管理器实现了get_litematic_file方法，则使用
             if hasattr(self.file_manager, 'get_litematic_file'):
                 return self.file_manager.get_litematic_file(category, filename)
             
             # 否则，自行实现简单版本
-            litematic_dir = self.file_manager.get_litematic_dir()
-            category_dir = os.path.join(litematic_dir, category)
+            litematic_dir: str = self.file_manager.get_litematic_dir()
+            category_dir: str = os.path.join(litematic_dir, category)
             
             if not os.path.exists(category_dir):
                 return None
                 
             # 精确匹配
-            file_path = os.path.join(category_dir, filename)
+            file_path: str = os.path.join(category_dir, filename)
             if os.path.exists(file_path):
                 return file_path
                 
             # 模糊匹配
-            matches = [f for f in os.listdir(category_dir) 
+            matches: List[str] = [f for f in os.listdir(category_dir) 
                       if f.endswith('.litematic') and filename.lower() in f.lower()]
             
             if matches:

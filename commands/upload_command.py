@@ -1,22 +1,32 @@
 import time
 import os
 import shutil
+from typing import Dict, Any, AsyncGenerator, Optional
 from astrbot import logger
-from astrbot.api.event import AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import File
+from ..services.file_manager import FileManager
+from ..services.category_manager import CategoryManager
 
 class UploadCommand:
-    def __init__(self, file_manager, category_manager):
-        self.file_manager = file_manager
-        self.category_manager = category_manager
-        self.upload_states = {}  # 用户上传状态跟踪
+    def __init__(self, file_manager: FileManager, category_manager: CategoryManager) -> None:
+        self.file_manager: FileManager = file_manager
+        self.category_manager: CategoryManager = category_manager
+        self.upload_states: Dict[str, Dict[str, Any]] = {}  # 用户上传状态跟踪
     
-    async def execute(self, event: AstrMessageEvent, category: str = "default"):
+    async def execute(self, event: AstrMessageEvent, category: str = "default") -> AsyncGenerator[MessageChain, None]:
         """
         上传litematic到指定分类文件夹下
         使用方法：
         /投影 - 查看帮助
         /投影 分类名 - 上传文件到指定分类
+        
+        Args:
+            event: 消息事件
+            category: 分类名称，默认为"default"
+            
+        Yields:
+            MessageChain: 响应消息
         """
         # 显示帮助信息
         if not category or category == "default":
@@ -42,8 +52,16 @@ class UploadCommand:
         
         yield event.plain_result(f"请在5分钟内上传.litematic文件到{category}分类")
     
-    async def handle_upload(self, event: AstrMessageEvent):
-        """处理文件上传事件"""
+    async def handle_upload(self, event: AstrMessageEvent) -> AsyncGenerator[MessageChain, None]:
+        """
+        处理文件上传事件
+        
+        Args:
+            event: 消息事件
+            
+        Yields:
+            MessageChain: 响应消息
+        """
         user_key = f"{event.session_id}_{event.get_sender_id()}"
         
         # 验证上传状态
