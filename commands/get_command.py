@@ -5,6 +5,8 @@ from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import File
 from ..services.file_manager import FileManager
 from ..utils.types import CategoryType, FilePath, MessageResponse
+from ..utils.exceptions import FileNotFoundError, LitematicPluginError, CategoryNotFoundError
+from ..utils.logging_utils import log_error, log_operation
 
 class GetCommand:
     def __init__(self, file_manager: FileManager) -> None:
@@ -29,15 +31,10 @@ class GetCommand:
             yield event.plain_result("请指定分类和文件名，例如：/投影获取 建筑 house.litematic")
             return
         
-        # 获取文件
-        file_path: Optional[FilePath] = self.file_manager.get_litematic_file(category, filename)
-        
-        if not file_path:
-            yield event.plain_result(f"在分类 {category} 下找不到文件 {filename}")
-            return
-        
-        # 发送文件
         try:
+            # 获取文件
+            file_path: FilePath = self.file_manager.get_litematic_file(category, filename)
+            
             # 发送提示信息
             yield event.plain_result("正在发送文件，请稍候...")
             
@@ -49,7 +46,16 @@ class GetCommand:
             message.chain.append(file_component)
             
             await event.send(message)
-            logger.info(f"已发送文件: {file_path}")
+            log_operation("发送文件", True, {"category": category, "filename": file_name, "path": file_path})
+        except FileNotFoundError as e:
+            log_error(e)
+            yield event.plain_result(e.message)
+        except CategoryNotFoundError as e:
+            log_error(e)
+            yield event.plain_result(e.message)
+        except LitematicPluginError as e:
+            log_error(e, extra_info={"category": category, "filename": filename})
+            yield event.plain_result(f"获取文件失败: {e.message}")
         except Exception as e:
-            logger.error(f"发送文件失败: {e}")
-            yield event.plain_result(f"发送文件失败: {e}") 
+            log_error(e, extra_info={"category": category, "filename": filename, "operation": "发送文件"})
+            yield event.plain_result(f"发送文件时出现错误: {str(e)}") 

@@ -5,6 +5,8 @@ from astrbot import logger
 from concurrent.futures import ThreadPoolExecutor
 from ..utils.config import Config
 from .category_manager import CategoryManager
+from ..utils.exceptions import FileNotFoundError, FileDeleteError, MultipleFilesFoundError, CategoryNotFoundError, CategoryDeleteError, FileSaveError
+from ..utils.logging_utils import log_error, log_operation
 
 class FileManager:
     """文件管理器，负责litematic文件的管理"""
@@ -30,7 +32,7 @@ class FileManager:
         """
         return self.litematic_dir
     
-    def get_litematic_file(self, category: str, filename: str) -> Optional[str]:
+    def get_litematic_file(self, category: str, filename: str) -> str:
         """获取指定的litematic文件路径，支持模糊匹配
         
         Args:
@@ -38,12 +40,17 @@ class FileManager:
             filename: 文件名
             
         Returns:
-            Optional[str]: 文件路径，未找到时返回None
+            str: 文件路径
+            
+        Raises:
+            CategoryNotFoundError: 分类不存在
+            FileNotFoundError: 文件不存在
+            MultipleFilesFoundError: 找到多个匹配的文件
         """
         category_dir = os.path.join(self.litematic_dir, category)
         
         if not os.path.exists(category_dir):
-            return None
+            raise CategoryNotFoundError(category)
             
         # 精确匹配
         file_path = os.path.join(category_dir, filename)
@@ -57,11 +64,12 @@ class FileManager:
         if len(matches) == 1:
             return os.path.join(category_dir, matches[0])
         elif len(matches) > 1:
-            # 多个匹配时返回第一个，实际应用中可能需要更复杂的处理
+            # 多个匹配时不再自动选择第一个，而是抛出异常
             logger.warning(f"文件名'{filename}'在'{category}'中有多个匹配: {matches}")
-            return os.path.join(category_dir, matches[0])
+            raise MultipleFilesFoundError(category, filename, matches)
         
-        return None
+        # 没有找到匹配的文件
+        raise FileNotFoundError(category, filename)
     
     def save_litematic_file(self, source_path: str, category: str, filename: str) -> str:
         """保存litematic文件到指定分类目录
@@ -75,17 +83,22 @@ class FileManager:
             str: 目标文件路径
             
         Raises:
-            Exception: 文件保存失败
+            FileSaveError: 文件保存失败
         """
-        category_dir = self._get_category_dir(category)
-        os.makedirs(category_dir, exist_ok=True)
-        
-        target_path = os.path.join(category_dir, os.path.basename(filename))
-        shutil.copy2(source_path, target_path)
-        logger.info(f"已保存litematic文件: {target_path}")
-        return target_path
+        try:
+            category_dir = self._get_category_dir(category)
+            os.makedirs(category_dir, exist_ok=True)
+            
+            target_path = os.path.join(category_dir, os.path.basename(filename))
+            shutil.copy2(source_path, target_path)
+            log_operation("保存文件", True, {"category": category, "filename": filename})
+            return target_path
+        except Exception as e:
+            error = FileSaveError(filename, str(e))
+            log_error(error)
+            raise error
     
-    def delete_litematic_file(self, category: str, filename: str) -> Tuple[Optional[Union[str, List[str]]], Optional[str]]:
+    def delete_litematic_file(self, category: str, filename: str) -> str:
         """删除指定分类下的litematic文件
         
         Args:
@@ -93,7 +106,12 @@ class FileManager:
             filename: 文件名
             
         Returns:
-            Tuple[Optional[Union[str, List[str]]], Optional[str]]: (删除的文件名或匹配列表, 错误信息)
+            str: 删除的文件名
+            
+        Raises:
+            FileNotFoundError: 文件不存在
+            MultipleFilesFoundError: 找到多个匹配的文件
+            FileDeleteError: 删除文件失败
         """
         category_dir = self._get_category_dir(category)
         file_path = os.path.join(category_dir, filename)
@@ -102,39 +120,45 @@ class FileManager:
             # 尝试模糊匹配
             matches = self.find_files_by_pattern(category, filename)
             if not matches:
-                return None, f"在分类 {category} 下找不到文件 {filename}"
+                raise FileNotFoundError(category, filename)
             elif len(matches) == 1:
                 file_path = os.path.join(category_dir, matches[0])
             else:
-                return matches, "找到多个匹配的文件"
+                raise MultipleFilesFoundError(category, filename, matches)
         
         try:
             os.remove(file_path)
-            return os.path.basename(file_path), None
+            deleted_filename = os.path.basename(file_path)
+            log_operation("删除文件", True, {"category": category, "filename": deleted_filename})
+            return deleted_filename
         except Exception as e:
-            logger.error(f"删除文件失败: {e}")
-            return None, f"删除文件失败: {e}"
+            error_msg = f"删除文件失败: {e}"
+            error = FileDeleteError(category, os.path.basename(file_path), str(e))
+            log_error(error)
+            raise error
     
-    def delete_category(self, category: str) -> Tuple[bool, Optional[str]]:
+    def delete_category(self, category: str) -> None:
         """删除整个分类及其文件
         
         Args:
             category: 分类名
             
-        Returns:
-            Tuple[bool, Optional[str]]: (是否成功, 错误信息)
+        Raises:
+            CategoryNotFoundError: 分类不存在
+            CategoryDeleteError: 删除分类失败
         """
         category_dir = self._get_category_dir(category)
         
         if not os.path.exists(category_dir):
-            return False, f"分类目录 {category} 不存在"
+            raise CategoryNotFoundError(category)
             
         try:
             shutil.rmtree(category_dir)
-            return True, None
+            log_operation("删除分类", True, {"category": category})
         except Exception as e:
-            logger.error(f"删除分类失败: {e}")
-            return False, f"删除分类失败: {e}"
+            error = CategoryDeleteError(category, str(e))
+            log_error(error)
+            raise error
     
     def find_files_by_pattern(self, category: str, pattern: str) -> List[str]:
         """在指定分类下查找匹配模式的文件
@@ -145,10 +169,13 @@ class FileManager:
             
         Returns:
             List[str]: 匹配的文件列表
+            
+        Raises:
+            CategoryNotFoundError: 分类不存在
         """
         category_dir = self._get_category_dir(category)
         if not os.path.exists(category_dir):
-            return []
+            raise CategoryNotFoundError(category)
             
         return [f for f in os.listdir(category_dir) 
                 if f.endswith('.litematic') and pattern.lower() in f.lower()]
@@ -161,10 +188,13 @@ class FileManager:
             
         Returns:
             List[str]: 文件列表
+            
+        Raises:
+            CategoryNotFoundError: 分类不存在
         """
         category_dir = self._get_category_dir(category)
         if not os.path.exists(category_dir):
-            return []
+            raise CategoryNotFoundError(category)
             
         return [f for f in os.listdir(category_dir) if f.endswith('.litematic')]
     
