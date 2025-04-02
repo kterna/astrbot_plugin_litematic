@@ -25,20 +25,20 @@ class TextureManager:
             if selected_pack:
                 self.texture_paths: List[str] = []
                 
-                first_path = os.path.join(self.resource_base_path, "block", selected_pack)
+                first_path = os.path.join(self.resource_base_path, "textures", "block", selected_pack)
                 if os.path.exists(first_path):
                     self.texture_paths.append(first_path)
                 
                 available_packs = self.resourcepack_config.get("available_packs", [])
                 for pack in available_packs:
                     if pack != selected_pack:
-                        pack_path = os.path.join(self.resource_base_path, "block", pack)
+                        pack_path = os.path.join(self.resource_base_path, "textures", "block", pack)
                         if os.path.exists(pack_path):
                             self.texture_paths.append(pack_path)
                 
-                self.texture_path: str = self.texture_paths[0] if self.texture_paths else os.path.join(self.resource_base_path, "block")
+                self.texture_path: str = self.texture_paths[0] if self.texture_paths else os.path.join(self.resource_base_path, "textures", "block")
             else:
-                self.texture_path = os.path.join(self.resource_base_path, "block")
+                self.texture_path = os.path.join(self.resource_base_path, "textures", "block")
                 self.texture_paths = [self.texture_path]
         else:
             self.texture_path = texture_path

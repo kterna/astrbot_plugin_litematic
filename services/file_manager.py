@@ -160,7 +160,6 @@ class FileManager:
             
             target_path = os.path.join(category_dir, os.path.basename(filename))
             shutil.copy2(source_path, target_path)
-            log_operation("保存文件", True, {"category": category, "filename": filename})
             return target_path
         except Exception as e:
             error = FileSaveError(filename, str(e))
@@ -234,7 +233,7 @@ class FileManager:
         try:
             os.remove(file_path)
             deleted_filename = os.path.basename(file_path)
-            log_operation("删除文件", True, {"category": category, "filename": deleted_filename})
+            log_operation("删除文件", True, {"category": category, "file_name": deleted_filename})
             return deleted_filename
         except Exception as e:
             error_msg = f"删除文件失败: {e}"

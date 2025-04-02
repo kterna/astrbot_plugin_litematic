@@ -21,7 +21,6 @@ class Block:
         self.texture_mappings: TextureMapping = {}
         
         self._set_default_mappings()
-        self._apply_special_block_mappings()
     
     def _set_default_mappings(self) -> None:
         """设置默认的材质面映射关系"""
@@ -31,24 +30,6 @@ class Block:
             'side': 'side',       # 侧视图使用side材质
             'bottom': 'bottom'    # 底视图使用bottom材质
         }
-    
-    def _apply_special_block_mappings(self) -> None:
-        """为特殊方块应用材质映射关系"""
-        if not self.facing:
-            return
-            
-        block_type_handlers: Dict[str, Callable[[], None]] = {
-            "stairs": self._apply_stairs_mappings,
-            "door": self._apply_door_mappings,
-            "piston": self._apply_piston_mappings,
-            "comparator": self._apply_redstone_component_mappings,
-            "repeater": self._apply_redstone_component_mappings
-        }
-        
-        for keyword, handler in block_type_handlers.items():
-            if keyword in self.name:
-                handler()
-                break
     
     def _apply_stairs_mappings(self) -> None:
         """应用楼梯方块的材质映射"""

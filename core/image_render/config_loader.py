@@ -3,8 +3,7 @@ import json
 
 class ConfigLoader:
     """
-    配置加载器，负责加载和处理各种配置文件，
-    包括资源包配置和特殊方块配置等。
+    配置加载器，负责加载和处理资源包配置文件。
     """
     
     def __init__(self, resource_base_path="./resource"):
@@ -61,55 +60,13 @@ class ConfigLoader:
             "texture_size": {}
         }
     
-    def load_special_blocks_config(self, config_path="./core/image_render/Special_blocks.json"):
-        """
-        加载特殊方块配置文件。
-        
-        参数:
-            config_path (str): 配置文件路径
-            
-        返回:
-            dict: 特殊方块配置信息
-        """
-        try:
-            # 尝试相对路径和绝对路径
-            if not os.path.isabs(config_path) and not os.path.exists(config_path):
-                # 基于当前文件路径尝试
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                config_path = os.path.join(current_dir, os.path.basename(config_path))
-            
-            if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return self._get_default_special_blocks_config()
-        except Exception:
-            return self._get_default_special_blocks_config()
-    
-    def _get_default_special_blocks_config(self):
-        """
-        返回默认的特殊方块配置。
-        
-        返回:
-            dict: 默认的特殊方块配置
-        """
-        return {
-            "version": "1.0",
-            "block_types": {},
-            "default_mapping": {
-                "top": "top",
-                "front": "side",
-                "side": "side",
-                "bottom": "bottom"
-            }
-        }
-    
     def validate_config(self, config, config_type):
         """
         验证配置文件的有效性。
         
         参数:
             config (dict): 配置数据
-            config_type (str): 配置类型 ('resourcepack', 'special_blocks')
+            config_type (str): 配置类型 ('resourcepack')
             
         返回:
             bool: 配置是否有效
@@ -126,15 +83,5 @@ class ConfigLoader:
                 return False
                 
             return True
-            
-        elif config_type == 'special_blocks':
-            # 检查关键字段是否存在
-            if 'version' not in config:
-                return False
                 
-            if 'block_types' not in config:
-                return False
-                
-            return True
-            
         return False 

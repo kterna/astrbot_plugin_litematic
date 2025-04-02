@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Optional, Union, TypedDict, Any, AsyncGenerator
+from typing import Dict, List, Tuple, Optional, Union, TypedDict, Any, AsyncGenerator, Literal
 
 # 基本类型别名
 CategoryType = str
@@ -41,4 +41,8 @@ class FileInfo(TypedDict):
     """文件信息类型"""
     name: str
     path: str
-    category: str 
+    category: str
+
+# 渲染相关类型
+ViewType = Literal["top", "front", "side", "north", "south", "east", "west", "combined"]
+LayoutType = Literal["vertical", "horizontal", "grid", "stacked", "combined", "v", "h", "g", "s", "c"] 

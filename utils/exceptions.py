@@ -147,12 +147,8 @@ class TextureNotFoundError(RenderError):
 class InvalidViewTypeError(RenderError):
     """无效的视图类型异常"""
     
-    def __init__(self, view_type: str, valid_types: List[str], code: int = 4002, details: Optional[Dict[str, Any]] = None) -> None:
-        message = f"无效的视图类型 {view_type}，有效类型: {', '.join(valid_types)}"
-        super_details = {"view_type": view_type, "valid_types": valid_types}
-        if details:
-            super_details.update(details)
-        super().__init__(message, code, super_details)
+    def __init__(self, message: str = "无效的视图类型", code: int = 4002, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, code, details)
 
 
 # 配置相关异常

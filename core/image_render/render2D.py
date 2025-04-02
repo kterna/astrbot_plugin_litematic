@@ -7,13 +7,13 @@ import json
 
 from .build_model import World, Block
 from .render_engine import RenderEngine
+from .interfaces import IRenderer, IImageSaver
 
 class Render2D:
     """2D渲染器，用于从World对象中提取信息并渲染Minecraft结构的2D投影预览图像"""
     
     def __init__(self, world: World, resource_base_path: str = "./resource", 
-                 texture_path: Optional[str] = None, texture_size: Optional[int] = None, 
-                 special_blocks_config: str = "./core/image_render/Special_blocks.json") -> None:
+                 texture_path: Optional[str] = None, texture_size: Optional[int] = None) -> None:
         """初始化2D渲染器"""
         self.world: World = world
         self.resource_base_path: str = resource_base_path
@@ -24,7 +24,6 @@ class Render2D:
             resource_base_path=resource_base_path,
             texture_path=texture_path,
             texture_size=texture_size,
-            special_blocks_config=special_blocks_config
         )
         
         # 保存其他属性，保持向后兼容性
@@ -34,7 +33,6 @@ class Render2D:
         self.texture_cache: Dict[str, Image.Image] = self.engine.texture_manager.texture_cache
         self.default_texture: Image.Image = self.engine.texture_manager.default_texture
         self.available_textures: List[str] = self.engine.texture_manager.available_textures
-        self.special_blocks_config: str = self.engine.special_blocks_config
         
     def render_top_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
                         min_z: Optional[int] = None, max_z: Optional[int] = None, 

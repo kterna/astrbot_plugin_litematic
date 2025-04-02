@@ -24,13 +24,24 @@ def log_error(error: Union[LitematicPluginError, Exception],
     
     # 添加额外信息
     if extra_info:
-        log_info.update(extra_info)
+        # 防止与LogRecord的预留属性冲突
+        if 'filename' in extra_info:
+            extra_copy = extra_info.copy()
+            extra_copy['file_name'] = extra_copy.pop('filename')
+            log_info.update(extra_copy)
+        else:
+            log_info.update(extra_info)
     
     # 如果是插件自定义异常，记录详细信息
     if isinstance(error, LitematicPluginError):
         error_code = getattr(error, 'code', 0)
         error_details = getattr(error, 'details', {})
         error_message = str(error)
+        
+        # 防止与LogRecord的预留属性冲突
+        if 'filename' in error_details:
+            error_details = error_details.copy()
+            error_details['file_name'] = error_details.pop('filename')
         
         log_info.update({
             'error_code': error_code,
@@ -91,7 +102,13 @@ def log_operation(operation: str, success: bool, details: Optional[Dict[str, Any
     """
     log_info = {}
     if details:
-        log_info.update(details)
+        # 防止与LogRecord的预留属性冲突
+        if 'filename' in details:
+            details_copy = details.copy()
+            details_copy['file_name'] = details_copy.pop('filename')
+            log_info.update(details_copy)
+        else:
+            log_info.update(details)
     
     level = logging.INFO if success else logging.WARNING
     status = "成功" if success else "失败"

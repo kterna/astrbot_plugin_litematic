@@ -51,7 +51,8 @@ class UploadCommand:
                 if not await self.category_manager.category_exists_async(category):
                     try:
                         await self.category_manager.create_category_async(category)
-                        log_operation("创建分类", True, {"category": category})
+                        # 使用category_name而不是category，避免与LogRecord保留属性冲突
+                        log_operation("创建分类", True, {"category_name": category})
                         yield event.plain_result(f"创建了新分类: {category}")
                     except CategoryAlreadyExistsError:
                         # 忽略分类已存在的异常，这种情况不应该发生，因为我们已经检查了分类是否存在
@@ -80,13 +81,13 @@ class UploadCommand:
                     self._handle_timeout(user_key, timeout_sec)
                 )
                 
-                log_operation("准备上传", True, {"category": category, "user_key": user_key})
+                log_operation("准备上传", True, {"category_name": category, "user_key": user_key})
                 yield event.plain_result(f"请在5分钟内上传.litematic文件到{category}分类")
             except Exception as e:
-                log_error(e, extra_info={"category": category, "operation": "设置上传状态"})
+                log_error(e, extra_info={"category_name": category, "operation": "设置上传状态"})
                 yield event.plain_result(f"准备上传时出现错误: {str(e)}")
         except Exception as e:
-            log_error(e, extra_info={"category": category, "operation": "执行上传命令"})
+            log_error(e, extra_info={"category_name": category, "operation": "执行上传命令"})
             yield event.plain_result(f"执行命令时出现错误: {str(e)}")
     
     async def handle_upload(self, event: AstrMessageEvent) -> MessageResponse:
@@ -115,13 +116,13 @@ class UploadCommand:
                     try:
                         # 使用异步方法保存文件
                         target_path = await self.file_manager.save_litematic_file_async(file_path, category, comp.name)
-                        log_operation("保存文件", True, {"category": category, "filename": comp.name, "path": target_path})
+                        log_operation("保存文件", True, {"category": category, "file_name": comp.name, "path": target_path})
                         yield event.plain_result(f"已成功保存litematic文件到{category}分类: {comp.name}")
                     except FileSaveError as e:
-                        log_error(e, extra_info={"category": category, "filename": comp.name})
+                        log_error(e, extra_info={"category": category, "file_name": comp.name})
                         yield event.plain_result(f"保存litematic文件失败: {e.message}")
                     except Exception as e:
-                        log_error(e, extra_info={"category": category, "filename": comp.name, "operation": "保存文件"})
+                        log_error(e, extra_info={"category": category, "file_name": comp.name, "operation": "保存文件"})
                         yield event.plain_result(f"保存文件时出现错误: {str(e)}")
                     
                     # 清理用户状态和取消超时任务
