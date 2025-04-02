@@ -40,24 +40,22 @@ class DeleteCommand:
         
         try:
             # 验证分类是否存在
-            if not self.category_manager.category_exists(category):
-                # 这里仍然使用手动检查，避免异常干扰常规控制流
+            if not await self.category_manager.category_exists_async(category):
+                # 使用异步方法检查分类
                 log_operation("检查分类", False, {"category": category})
-                yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(self.category_manager.get_categories())}")
+                categories = await self.category_manager.get_categories_async()
+                yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(categories)}")
                 return
             
             # 删除整个分类
             if not filename:
                 try:
-                    success, error = self.file_manager.delete_category(category)
-                    if success:
-                        # 文件删除成功，现在删除分类记录
-                        self.category_manager.delete_category(category)
-                        log_operation("删除分类", True, {"category": category})
-                        yield event.plain_result(f"已删除分类 {category} 及其下所有文件")
-                    else:
-                        log_operation("删除分类", False, {"category": category, "error": error})
-                        yield event.plain_result(f"删除分类 {category} 失败: {error}")
+                    # 使用异步方法删除分类
+                    await self.file_manager.delete_category_async(category)
+                    # 删除分类记录
+                    await self.category_manager.delete_category_async(category)
+                    log_operation("删除分类", True, {"category": category})
+                    yield event.plain_result(f"已删除分类 {category} 及其下所有文件")
                 except CategoryDeleteError as e:
                     log_error(e)
                     yield event.plain_result(f"删除分类失败: {e.message}")
@@ -68,26 +66,11 @@ class DeleteCommand:
             
             # 删除指定文件
             try:
-                result, error = self.file_manager.delete_litematic_file(category, filename)
-                
-                if error and isinstance(result, list):
-                    # 找到多个匹配的文件
-                    matches_text = "\n".join([f"- {file}" for file in result])
-                    log_operation("删除文件", False, {
-                        "category": category, 
-                        "filename": filename, 
-                        "reason": "多个匹配", 
-                        "matches": result
-                    })
-                    yield event.plain_result(f"找到多个匹配的文件，请指定完整文件名：\n{matches_text}")
-                elif error:
-                    # 其他错误
-                    log_operation("删除文件", False, {"category": category, "filename": filename, "error": error})
-                    yield event.plain_result(error)
-                else:
-                    # 成功删除
-                    log_operation("删除文件", True, {"category": category, "filename": result})
-                    yield event.plain_result(f"已删除文件: {result}")
+                # 使用异步方法删除文件
+                deleted_filename = await self.file_manager.delete_litematic_file_async(category, filename)
+                # 成功删除
+                log_operation("删除文件", True, {"category": category, "filename": deleted_filename})
+                yield event.plain_result(f"已删除文件: {deleted_filename}")
             except MultipleFilesFoundError as e:
                 log_error(e)
                 matches_text = "\n".join([f"- {file}" for file in e.details.get("matches", [])])

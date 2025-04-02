@@ -1,5 +1,6 @@
 import os
 import traceback
+import asyncio
 from typing import Dict, List, Optional
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
@@ -42,11 +43,11 @@ class PreviewCommand:
             # 发送加载提示
             yield event.plain_result("正在生成预览图，请稍候...")
             
-            # 获取文件路径
-            file_path: FilePath = self.file_manager.get_litematic_file(category, filename)
+            # 获取文件路径 - 使用异步方法
+            file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
             
-            # 渲染litematic文件
-            image_path: FilePath = self.render_manager.render_litematic(file_path, view_type)
+            # 渲染litematic文件 - 使用异步方法
+            image_path: FilePath = await self.render_manager.render_litematic_async(file_path, view_type)
             
             # 准备消息链
             message: MessageChain = MessageChain()
@@ -58,9 +59,9 @@ class PreviewCommand:
             # 发送说明文本
             yield event.plain_result(f"【{os.path.basename(file_path)}】{self._get_view_caption(view_type)}")
             
-            # 删除临时图像文件
+            # 删除临时图像文件 - 使用异步删除
             if os.path.exists(image_path):
-                os.remove(image_path)
+                await asyncio.to_thread(os.remove, image_path)
                 
         except FileNotFoundError as e:
             yield event.plain_result(e.message)

@@ -29,7 +29,7 @@ class ListCommand:
         try:
             # 列出所有分类
             if not category:
-                categories: List[CategoryType] = self.category_manager.get_categories()
+                categories: List[CategoryType] = await self.category_manager.get_categories_async()
                 if not categories:
                     log_operation("列出分类", True, {"result": "empty"})
                     yield event.plain_result("还没有任何分类，使用 /投影 分类名 来创建分类")
@@ -40,15 +40,16 @@ class ListCommand:
                 yield event.plain_result(f"可用的分类列表：\n{categories_text}\n\n使用 /投影列表 分类名 查看分类下的文件")
                 return
             
-            # 验证分类是否存在 - 这里仍然使用手动检查以避免异常干扰正常流程
-            if not self.category_manager.category_exists(category):
+            # 验证分类是否存在 - 使用异步方法检查
+            if not await self.category_manager.category_exists_async(category):
                 log_operation("检查分类", False, {"category": category})
-                yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(self.category_manager.get_categories())}")
+                categories = await self.category_manager.get_categories_async()
+                yield event.plain_result(f"分类 {category} 不存在，可用的分类：{', '.join(categories)}")
                 return
             
             # 列出分类下的文件
             try:
-                files: List[str] = self.file_manager.list_files(category)
+                files: List[str] = await self.file_manager.list_files_async(category)
                 if not files:
                     log_operation("列出文件", True, {"category": category, "result": "empty"})
                     yield event.plain_result(f"分类 {category} 下还没有文件，使用 /投影 {category} 来上传文件")

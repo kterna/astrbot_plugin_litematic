@@ -32,8 +32,8 @@ class GetCommand:
             return
         
         try:
-            # 获取文件
-            file_path: FilePath = self.file_manager.get_litematic_file(category, filename)
+            # 获取文件 - 使用异步方法
+            file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
             
             # 发送提示信息
             yield event.plain_result("正在发送文件，请稍候...")

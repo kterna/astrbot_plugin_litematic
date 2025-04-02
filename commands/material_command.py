@@ -1,5 +1,6 @@
 import os
 import traceback
+import asyncio
 from typing import Dict, Optional, Tuple, List
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
@@ -44,11 +45,15 @@ class MaterialCommand:
             # 加载litematic文件
             yield event.plain_result("正在分析材料清单，请稍候...")
             
-            # 获取文件路径
-            file_path: FilePath = self.file_manager.get_litematic_file(category, filename)
+            # 获取文件路径 - 使用异步方法
+            file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
+            
+            # 使用Material类分析文件 - 由于这是CPU密集型操作，使用线程池运行
+            schematic, block_counts, entity_counts, tile_counts = await asyncio.to_thread(
+                self._analyze_material, file_path
+            )
             
             # 使用Material类分析文件
-            schematic: Schematic = Schematic.load(file_path)
             material_analyzer: Material = Material("材料分析", 0)
             
             # 获取方块和实体统计
@@ -104,4 +109,24 @@ class MaterialCommand:
         except Exception as e:
             error_details = {"category": category, "filename": filename, "error": str(e), "traceback": traceback.format_exc()}
             log_error(e, extra_info=error_details)
-            yield event.plain_result(f"分析材料时出现错误: {str(e)}") 
+            yield event.plain_result(f"分析材料时出现错误: {str(e)}")
+
+    def _analyze_material(self, file_path: FilePath) -> Tuple[Schematic, BlockCounts, EntityCounts, Dict[str, int]]:
+        """
+        分析Litematic文件中的材料（CPU密集型操作，在线程池中运行）
+        
+        Args:
+            file_path: Litematic文件路径
+            
+        Returns:
+            Tuple[Schematic, BlockCounts, EntityCounts, Dict[str, int]]: 结构体及统计数据
+        """
+        schematic: Schematic = Schematic.load(file_path)
+        material_analyzer: Material = Material("材料分析", 0)
+        
+        # 获取方块和实体统计
+        block_counts: BlockCounts = material_analyzer.block_collection(schematic)
+        entity_counts: EntityCounts = material_analyzer.entity_collection(schematic)
+        tile_counts: Dict[str, int] = material_analyzer.tile_collection(schematic)
+        
+        return schematic, block_counts, entity_counts, tile_counts 

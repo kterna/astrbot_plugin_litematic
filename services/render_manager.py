@@ -1,5 +1,6 @@
 import os
 import tempfile
+import asyncio
 from typing import Callable, Dict, Optional, Union, Any
 from PIL import Image as PILImage
 from astrbot import logger
@@ -16,6 +17,36 @@ class RenderManager:
     def render_litematic(self, file_path: str, view_type: str = "combined", scale: int = 1) -> str:
         """
         渲染litematic文件
+        
+        Args:
+            file_path: litematic文件路径
+            view_type: 视图类型，支持top/front/side/north/south/east/west/combined
+            scale: 缩放比例
+            
+        Returns:
+            str: 临时图像文件路径
+        """
+        return self._sync_render_litematic(file_path, view_type, scale)
+    
+    async def render_litematic_async(self, file_path: str, view_type: str = "combined", scale: int = 1) -> str:
+        """
+        异步渲染litematic文件
+        
+        此方法是异步的，调用时需要使用await。
+        
+        Args:
+            file_path: litematic文件路径
+            view_type: 视图类型，支持top/front/side/north/south/east/west/combined
+            scale: 缩放比例
+            
+        Returns:
+            str: 临时图像文件路径
+        """
+        return await asyncio.to_thread(self._sync_render_litematic, file_path, view_type, scale)
+    
+    def _sync_render_litematic(self, file_path: str, view_type: str = "combined", scale: int = 1) -> str:
+        """
+        同步渲染litematic文件（内部方法）
         
         Args:
             file_path: litematic文件路径

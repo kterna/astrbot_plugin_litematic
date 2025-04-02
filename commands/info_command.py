@@ -1,6 +1,7 @@
 import os
 import traceback
-from typing import List, Optional
+import asyncio
+from typing import List, Optional, Tuple
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from ..core.detail_analysis.detail_analysis import DetailAnalysis
@@ -47,13 +48,11 @@ class InfoCommand:
             # 加载litematic文件
             yield event.plain_result("正在分析投影文件，请稍候...")
             
-            # 获取文件路径
-            file_path: FilePath = self.file_manager.get_litematic_file(category, filename)
+            # 获取文件路径 - 使用异步方法
+            file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
             
-            # 分析投影文件
-            schematic: Schematic = Schematic.load(file_path)
-            analyzer: DetailAnalysis = DetailAnalysis(schematic)
-            details: List[str] = analyzer.analyze_schematic(file_path)
+            # 分析投影文件 - 使用线程池处理CPU密集型操作
+            schematic, details = await asyncio.to_thread(self._analyze_schematic, file_path)
             
             # 生成结果文本
             result_text: str = f"【{os.path.basename(file_path)}】详细信息：\n\n"
@@ -72,4 +71,18 @@ class InfoCommand:
         except Exception as e:
             logger.error(f"分析投影文件时出现未知错误: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
-            yield event.plain_result(f"分析投影文件时出现错误: {str(e)}") 
+            yield event.plain_result(f"分析投影文件时出现错误: {str(e)}")
+    
+    def _analyze_schematic(self, file_path: FilePath) -> Tuple[Schematic, List[str]]:
+        """分析投影文件（在线程池中运行的CPU密集型操作）
+        
+        Args:
+            file_path: 投影文件路径
+            
+        Returns:
+            Tuple[Schematic, List[str]]: 结构体和分析结果
+        """
+        schematic: Schematic = Schematic.load(file_path)
+        analyzer: DetailAnalysis = DetailAnalysis(schematic)
+        details: List[str] = analyzer.analyze_schematic(file_path)
+        return schematic, details 

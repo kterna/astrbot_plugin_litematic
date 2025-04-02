@@ -1,6 +1,7 @@
 import time
 import os
 import shutil
+import asyncio
 from typing import Dict, Any
 
 from astrbot import logger
@@ -18,6 +19,7 @@ class UploadCommand:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
         self.upload_states: Dict[UserKey, UploadStatus] = {}  # 用户上传状态跟踪
+        self.timeout_tasks: Dict[UserKey, asyncio.Task] = {}  # 超时任务
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "default") -> MessageResponse:
         """
@@ -36,7 +38,7 @@ class UploadCommand:
         try:
             # 显示帮助信息
             if not category or category == "default":
-                categories_text = "\n".join([f"- {cat}" for cat in self.category_manager.get_categories()])
+                categories_text = "\n".join([f"- {cat}" for cat in await self.category_manager.get_categories_async()])
                 yield event.plain_result(
                     f"投影\n"
                     f"请提供分类名称,例如: /投影 建筑\n"
@@ -46,9 +48,9 @@ class UploadCommand:
             
             # 处理新分类
             try:
-                if not self.category_manager.category_exists(category):
+                if not await self.category_manager.category_exists_async(category):
                     try:
-                        self.category_manager.create_category(category)
+                        await self.category_manager.create_category_async(category)
                         log_operation("创建分类", True, {"category": category})
                         yield event.plain_result(f"创建了新分类: {category}")
                     except CategoryAlreadyExistsError:
@@ -61,10 +63,22 @@ class UploadCommand:
                 
                 # 记录用户上传状态
                 user_key: UserKey = f"{event.session_id}_{event.get_sender_id()}"
+                timeout_sec = 300  # 5分钟超时
+                
+                # 清除之前的超时任务（如果存在）
+                if user_key in self.timeout_tasks and not self.timeout_tasks[user_key].done():
+                    self.timeout_tasks[user_key].cancel()
+                
+                # 设置新的状态和超时任务
                 self.upload_states[user_key] = {
                     "category": category,
-                    "expire_time": time.time() + 300
+                    "expire_time": time.time() + timeout_sec
                 }
+                
+                # 创建新的超时任务
+                self.timeout_tasks[user_key] = asyncio.create_task(
+                    self._handle_timeout(user_key, timeout_sec)
+                )
                 
                 log_operation("准备上传", True, {"category": category, "user_key": user_key})
                 yield event.plain_result(f"请在5分钟内上传.litematic文件到{category}分类")
@@ -90,12 +104,6 @@ class UploadCommand:
         # 验证上传状态
         if user_key not in self.upload_states:
             return
-            
-        # 检查是否超时
-        if time.time() > self.upload_states[user_key].get("expire_time", 0):
-            log_operation("上传超时", False, {"user_key": user_key})
-            del self.upload_states[user_key]
-            return
         
         try:
             # 处理文件上传
@@ -105,7 +113,8 @@ class UploadCommand:
                     category = self.upload_states[user_key].get("category", "default")
                     
                     try:
-                        target_path = self.file_manager.save_litematic_file(file_path, category, comp.name)
+                        # 使用异步方法保存文件
+                        target_path = await self.file_manager.save_litematic_file_async(file_path, category, comp.name)
                         log_operation("保存文件", True, {"category": category, "filename": comp.name, "path": target_path})
                         yield event.plain_result(f"已成功保存litematic文件到{category}分类: {comp.name}")
                     except FileSaveError as e:
@@ -115,13 +124,48 @@ class UploadCommand:
                         log_error(e, extra_info={"category": category, "filename": comp.name, "operation": "保存文件"})
                         yield event.plain_result(f"保存文件时出现错误: {str(e)}")
                     
-                    # 清理用户状态
-                    del self.upload_states[user_key]
+                    # 清理用户状态和取消超时任务
+                    await self._clear_user_state(user_key)
                     return
         except Exception as e:
             log_error(e, extra_info={"user_key": user_key, "operation": "处理文件上传"})
             yield event.plain_result(f"处理文件上传时出现错误: {str(e)}")
             # 出错时也清理状态
+            await self._clear_user_state(user_key)
+        return
+    
+    async def _handle_timeout(self, user_key: UserKey, timeout_sec: int) -> None:
+        """
+        处理上传超时
+        
+        Args:
+            user_key: 用户标识
+            timeout_sec: 超时秒数
+        """
+        try:
+            await asyncio.sleep(timeout_sec)
+            # 如果用户状态仍存在，则说明超时了
             if user_key in self.upload_states:
+                log_operation("上传超时", False, {"user_key": user_key})
                 del self.upload_states[user_key]
-        return 
+        except asyncio.CancelledError:
+            # 任务被取消，正常情况（例如用户完成了上传）
+            pass
+        except Exception as e:
+            log_error(e, extra_info={"user_key": user_key, "operation": "处理超时"})
+    
+    async def _clear_user_state(self, user_key: UserKey) -> None:
+        """
+        清理用户状态和相关任务
+        
+        Args:
+            user_key: 用户标识
+        """
+        # 删除上传状态
+        if user_key in self.upload_states:
+            del self.upload_states[user_key]
+        
+        # 取消超时任务
+        if user_key in self.timeout_tasks and not self.timeout_tasks[user_key].done():
+            self.timeout_tasks[user_key].cancel()
+            del self.timeout_tasks[user_key] 
