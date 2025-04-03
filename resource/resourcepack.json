@@ -1,15 +1,12 @@
 {
-    "selected_pack": "XeKr 原版红显16_19plus",
+    "selected_pack": "vanilla",
     "available_packs": [
-        "XeKr 原版红显16_19plus",
-        "Faithful 64x"
+        "vanilla"
     ],
     "texture_size": {
-        "XeKr 原版红显16_19plus": 16,
-        "Faithful 64x": 64
+        "vanilla": 16
     },
     "description": {
-        "XeKr 原版红显16_19plus": "XeKr的红石显示增强材质包，16x16分辨率",
-        "Faithful 64x": "Faithful高清材质包，64x64分辨率"
+        "vanilla": "原版材质包，16x16分辨率"
     }
 }
