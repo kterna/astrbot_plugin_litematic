@@ -1,12 +1,13 @@
 from litemapy import Schematic
 import collections
+from typing import Dict, Any
 
 class Material:
-    def __init__(self, name, count):
-        self.name = name
-        self.count = count
+    def __init__(self, name: str, count: int) -> None:
+        self.name: str = name
+        self.count: int = count
 
-    def block_collection(self, schematic: Schematic):
+    def block_collection(self, schematic: Schematic) -> Dict[str, int]:
         """
         统计schematic中所有region的方块数量
         
@@ -14,7 +15,7 @@ class Material:
             schematic: Litematic格式的示意图
             
         Returns:
-            dict: 包含每种方块及其数量的字典
+            Dict[str, int]: 包含每种方块ID及其数量的字典
         """
         block_counts = collections.Counter()
         
@@ -33,7 +34,7 @@ class Material:
         
         return dict(block_counts)
 
-    def entity_collection(self, schematic: Schematic):
+    def entity_collection(self, schematic: Schematic) -> Dict[str, int]:
         """
         统计schematic中所有region的实体数量
         
@@ -41,7 +42,7 @@ class Material:
             schematic: Litematic格式的示意图
             
         Returns:
-            dict: 包含每种实体及其数量的字典
+            Dict[str, int]: 包含每种实体ID及其数量的字典
         """
         entity_counts = collections.Counter()
         
@@ -57,7 +58,7 @@ class Material:
         
         return dict(entity_counts)
 
-    def tile_collection(self, schematic: Schematic):
+    def tile_collection(self, schematic: Schematic) -> Dict[str, int]:
         """
         统计schematic中所有方块实体的数据
 
@@ -65,7 +66,7 @@ class Material:
             schematic: Litematic格式的示意图
             
         Returns:
-            dict: 包含每种方块实体及其数据的字典
+            Dict[str, int]: 包含每种方块实体ID及其数量的字典
         """
         tile_entity_counts = collections.Counter()
         

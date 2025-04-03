@@ -1,20 +1,21 @@
 from litemapy import Schematic
 import collections
+from typing import List, Optional
 
 class DetailAnalysis:
-    def __init__(self, schematic: Schematic):
-        self.schematic = schematic
-        self.details = [] 
+    def __init__(self, schematic: Schematic) -> None:
+        self.schematic: Schematic = schematic
+        self.details: List[str] = [] 
 
-    def analyze_schematic(self, file_path):
+    def analyze_schematic(self, file_path: Optional[str] = None) -> List[str]:
         """
         分析schematic的详细信息
 
         Args:
-            file_path: Litematic文件路径
+            file_path: Litematic文件路径，可选，因为我们已经在初始化时传入了schematic
             
         Returns:
-            list: 详细信息列表
+            List[str]: 详细信息列表
         """
         # 确保使用传入的schematic而不是重新加载
         # 注释掉这行，因为我们已经在初始化时传入了schematic
