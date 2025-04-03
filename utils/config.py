@@ -28,12 +28,13 @@ class Config:
         os.makedirs(self.litematic_dir, exist_ok=True)
         
         # 默认配置
-        self.default_config: Dict[str, Union[List[str], int, str]] = {
+        self.default_config: Dict[str, Union[List[str], int, str, bool]] = {
             "default_categories": ["建筑", "红石"],
             "upload_timeout": 300,  # 秒
             "temp_dir": os.path.join(self.plugin_dir, "temp"),
             "max_workers": 3,
-            "resource_dir": os.path.join(self.plugin_dir, "resource")
+            "resource_dir": os.path.join(self.plugin_dir, "resource"),
+            "use_block_models": True  # 默认启用方块模型
         }
         
         # 创建临时目录
@@ -81,4 +82,20 @@ class Config:
         Returns:
             str: 资源目录路径
         """
-        return self.default_config.get("resource_dir") 
+        return self.default_config.get("resource_dir")
+    
+    def get_models_dir(self) -> str:
+        """获取模型目录路径
+        
+        Returns:
+            str: 模型目录路径
+        """
+        return os.path.join(self.get_resource_dir(), "models", "block")
+    
+    def use_block_models(self) -> bool:
+        """检查是否使用方块模型
+        
+        Returns:
+            bool: 是否启用方块模型
+        """
+        return self.get_config_value("use_block_models", True) 

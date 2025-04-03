@@ -16,7 +16,8 @@ from .render_processors import (
     TopViewProcessor, 
     FrontViewProcessor, 
     SideViewProcessor, 
-    ViewCombinerProcessor
+    ViewCombinerProcessor,
+    ModelRendererProcessor
 )
 from .view_combiner import ViewCombiner, LayoutType
 
@@ -34,6 +35,7 @@ class RenderOptions:
         self.stack_x_offset: int = 20                    # 堆叠布局X偏移
         self.stack_y_offset: int = 20                    # 堆叠布局Y偏移
         self.export_format: str = 'PNG'                  # 导出格式
+        self.use_block_models: bool = True               # 是否使用方块模型
         self.custom_options: Dict[str, Any] = {}         # 自定义选项
     
     def as_dict(self) -> Dict[str, Any]:
@@ -48,6 +50,7 @@ class RenderOptions:
             'stack_x_offset': self.stack_x_offset,
             'stack_y_offset': self.stack_y_offset,
             'export_format': self.export_format,
+            'use_block_models': self.use_block_models,
             'custom_options': self.custom_options
         }
     
@@ -111,6 +114,7 @@ class RenderEngine:
             None, 
             None
         )
+        self.model_processor = ModelRendererProcessor()
         self.top_view_processor = TopViewProcessor()
         self.front_view_processor = FrontViewProcessor()
         self.side_view_processor = SideViewProcessor()
@@ -120,24 +124,28 @@ class RenderEngine:
         self.top_view_pipeline = RenderPipeline[Image.Image]()
         self.top_view_pipeline.add_processor(self.bounds_processor)
         self.top_view_pipeline.add_processor(self.texture_processor)
+        self.top_view_pipeline.add_processor(self.model_processor)
         self.top_view_pipeline.add_processor(self.top_view_processor)
         
         # 创建正视图管道
         self.front_view_pipeline = RenderPipeline[Image.Image]()
         self.front_view_pipeline.add_processor(self.bounds_processor)
         self.front_view_pipeline.add_processor(self.texture_processor)
+        self.front_view_pipeline.add_processor(self.model_processor)
         self.front_view_pipeline.add_processor(self.front_view_processor)
         
         # 创建侧视图管道
         self.side_view_pipeline = RenderPipeline[Image.Image]()
         self.side_view_pipeline.add_processor(self.bounds_processor)
         self.side_view_pipeline.add_processor(self.texture_processor)
+        self.side_view_pipeline.add_processor(self.model_processor)
         self.side_view_pipeline.add_processor(self.side_view_processor)
         
         # 创建组合视图管道
         self.combined_view_pipeline = RenderPipeline[Image.Image]()
         self.combined_view_pipeline.add_processor(self.bounds_processor)
         self.combined_view_pipeline.add_processor(self.texture_processor)
+        self.combined_view_pipeline.add_processor(self.model_processor)
         self.combined_view_pipeline.add_processor(self.top_view_processor)
         self.combined_view_pipeline.add_processor(self.front_view_processor)
         self.combined_view_pipeline.add_processor(self.side_view_processor)
@@ -145,7 +153,7 @@ class RenderEngine:
     
     def render_top_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
                         min_z: Optional[int] = None, max_z: Optional[int] = None, 
-                        scale: int = 1) -> Image.Image:
+                        scale: int = 1, use_block_models: bool = True) -> Image.Image:
         """渲染俯视图
         
         Args:
@@ -154,6 +162,7 @@ class RenderEngine:
             min_z: Z轴最小坐标
             max_z: Z轴最大坐标
             scale: 缩放比例
+            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -162,6 +171,8 @@ class RenderEngine:
         context = RenderContext()
         context.set("world", self.world)
         context.set("scale", scale)
+        context.set("resource_dir", self.resource_base_path)
+        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_x is not None and max_x is not None and min_z is not None and max_z is not None:
@@ -174,7 +185,7 @@ class RenderEngine:
     
     def render_front_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
                           min_y: Optional[int] = None, max_y: Optional[int] = None, 
-                          z: Optional[int] = None, scale: int = 1) -> Image.Image:
+                          z: Optional[int] = None, scale: int = 1, use_block_models: bool = True) -> Image.Image:
         """渲染正视图
         
         Args:
@@ -184,6 +195,7 @@ class RenderEngine:
             max_y: Y轴最大坐标
             z: Z轴位置
             scale: 缩放比例
+            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -193,6 +205,8 @@ class RenderEngine:
         context.set("world", self.world)
         context.set("scale", scale)
         context.set("front_z", z)
+        context.set("resource_dir", self.resource_base_path)
+        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_x is not None and max_x is not None and min_y is not None and max_y is not None:
@@ -205,7 +219,7 @@ class RenderEngine:
     
     def render_side_view(self, min_z: Optional[int] = None, max_z: Optional[int] = None, 
                          min_y: Optional[int] = None, max_y: Optional[int] = None, 
-                         x: Optional[int] = None, scale: int = 1) -> Image.Image:
+                         x: Optional[int] = None, scale: int = 1, use_block_models: bool = True) -> Image.Image:
         """渲染侧视图
         
         Args:
@@ -215,6 +229,7 @@ class RenderEngine:
             max_y: Y轴最大坐标
             x: X轴位置
             scale: 缩放比例
+            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -224,6 +239,8 @@ class RenderEngine:
         context.set("world", self.world)
         context.set("scale", scale)
         context.set("side_x", x)
+        context.set("resource_dir", self.resource_base_path)
+        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_z is not None and max_z is not None and min_y is not None and max_y is not None:
@@ -234,11 +251,12 @@ class RenderEngine:
         # 执行管道
         return self.side_view_pipeline.execute(context)
     
-    def render_all_views(self, scale: int = 1) -> Image.Image:
+    def render_all_views(self, scale: int = 1, use_block_models: bool = True) -> Image.Image:
         """渲染所有视图并拼接
         
         Args:
             scale: 缩放比例
+            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -247,6 +265,8 @@ class RenderEngine:
         context = RenderContext()
         context.set("world", self.world)
         context.set("scale", scale)
+        context.set("resource_dir", self.resource_base_path)
+        context.set("use_block_models", use_block_models)
         
         # 执行管道
         return self.combined_view_pipeline.execute(context)
@@ -271,11 +291,22 @@ class RenderEngine:
         context.set("world", self.world)
         context.set("scale", options.scale)
         context.set("render_options", options)
+        context.set("resource_dir", self.resource_base_path)
+        context.set("use_block_models", options.use_block_models)
         
         # 渲染各个视图
-        top_view = self.render_top_view(scale=options.scale)
-        front_view = self.render_front_view(scale=options.scale)
-        side_view = self.render_side_view(scale=options.scale)
+        top_view = self.render_top_view(
+            scale=options.scale, 
+            use_block_models=options.use_block_models
+        )
+        front_view = self.render_front_view(
+            scale=options.scale, 
+            use_block_models=options.use_block_models
+        )
+        side_view = self.render_side_view(
+            scale=options.scale, 
+            use_block_models=options.use_block_models
+        )
         
         # 根据布局类型使用不同的布局
         views = {

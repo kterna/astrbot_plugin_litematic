@@ -59,7 +59,8 @@ class RenderFacade:
                scale: int = 1, 
                layout: str = "",
                spacing: int = 0,
-               add_labels: bool = False) -> Optional[Image.Image]:
+               add_labels: bool = False,
+               use_block_models: bool = True) -> Optional[Image.Image]:
         """
         渲染当前加载的Litematic文件
         
@@ -69,6 +70,7 @@ class RenderFacade:
             layout: 布局类型 (vertical/horizontal/grid/stacked)
             spacing: 视图间距
             add_labels: 是否添加标签
+            use_block_models: 是否使用方块模型
             
         Returns:
             Optional[Image.Image]: 渲染后的图像，失败返回None
@@ -82,6 +84,7 @@ class RenderFacade:
             options.scale = scale
             options.spacing = spacing
             options.add_labels = add_labels
+            options.use_block_models = use_block_models
             
             # 确定视图类型
             view_type = view_type.lower()
@@ -89,15 +92,32 @@ class RenderFacade:
             # 单视图渲染
             if view_type in ["top", "front", "north", "side", "east", "south", "west"]:
                 if view_type == "top":
-                    return self._current_engine.render_top_view(scale=scale)
+                    return self._current_engine.render_top_view(
+                        scale=scale, 
+                        use_block_models=use_block_models
+                    )
                 elif view_type in ["front", "north"]:
-                    return self._current_engine.render_front_view(scale=scale)
+                    return self._current_engine.render_front_view(
+                        scale=scale, 
+                        use_block_models=use_block_models
+                    )
                 elif view_type in ["side", "east"]:
-                    return self._current_engine.render_side_view(scale=scale)
+                    return self._current_engine.render_side_view(
+                        scale=scale, 
+                        use_block_models=use_block_models
+                    )
                 elif view_type == "south":
-                    return self._current_engine.render_front_view(z=0, scale=scale)
+                    return self._current_engine.render_front_view(
+                        z=0, 
+                        scale=scale, 
+                        use_block_models=use_block_models
+                    )
                 elif view_type == "west":
-                    return self._current_engine.render_side_view(x=0, scale=scale)
+                    return self._current_engine.render_side_view(
+                        x=0, 
+                        scale=scale, 
+                        use_block_models=use_block_models
+                    )
             
             # 组合视图渲染
             layout_type = self._map_layout_type(layout)
@@ -105,7 +125,10 @@ class RenderFacade:
                 options.layout_type = layout_type
                 return self._current_engine.render_with_layout(layout_type, options)
             else:
-                return self._current_engine.render_all_views(scale=scale)
+                return self._current_engine.render_all_views(
+                    scale=scale, 
+                    use_block_models=use_block_models
+                )
                 
         except Exception:
             return None
@@ -134,7 +157,8 @@ class RenderFacade:
     
     def render_to_file(self, output_path: str, view_type: str = "combined", 
                       scale: int = 1, layout: str = "", 
-                      spacing: int = 0, add_labels: bool = False) -> bool:
+                      spacing: int = 0, add_labels: bool = False,
+                      use_block_models: bool = True) -> bool:
         """
         渲染并直接保存到文件
         
@@ -145,11 +169,19 @@ class RenderFacade:
             layout: 布局类型
             spacing: 视图间距
             add_labels: 是否添加标签
+            use_block_models: 是否使用方块模型
             
         Returns:
             bool: 是否成功
         """
-        image = self.render(view_type, scale, layout, spacing, add_labels)
+        image = self.render(
+            view_type, 
+            scale, 
+            layout, 
+            spacing, 
+            add_labels, 
+            use_block_models
+        )
         if image:
             return self.save_image(image, output_path)
         return False

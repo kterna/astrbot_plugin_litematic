@@ -5,6 +5,8 @@ from .interfaces import RenderContext
 from .render_pipeline import AbstractRenderProcessor
 from .texture_manager import TextureManager
 from .build_model import World, Block
+from .model_loader import ModelLoader
+from .model_renderer import ModelRenderer
 
 class BoundsCalculatorProcessor(AbstractRenderProcessor[Tuple[int, int, int, int, int, int]]):
     """计算结构边界的处理器"""
@@ -109,6 +111,8 @@ class TopViewProcessor(AbstractRenderProcessor[Image.Image]):
         texture_manager = cast(TextureManager, context.get("texture_manager"))
         bounds = cast(Tuple[int, int, int, int, int, int], context.get("bounds"))
         scale = cast(int, context.get("scale", 1))
+        use_block_models = cast(bool, context.get("use_block_models", True))
+        model_renderer = context.get("model_renderer")
         
         if not world or not texture_manager or not bounds:
             raise ValueError("上下文中缺少必要对象")
@@ -139,11 +143,22 @@ class TopViewProcessor(AbstractRenderProcessor[Image.Image]):
             pos_x = (x - min_x) * texture_manager.texture_size
             pos_z = (z - min_z) * texture_manager.texture_size
             
-            face = block.get_texture_face('top')
-            texture = texture_manager.get_texture(block.name, face)
+            # 尝试使用模型渲染
+            block_image = None
+            if use_block_models and model_renderer and hasattr(block, "model_data") and block.model_data:
+                # 在这里复制model_data，并添加facing属性
+                model_data = dict(block.model_data)
+                if block.facing:
+                    model_data["facing"] = block.facing
+                block_image = model_renderer.render_model_face(model_data, "up")
             
-            # 直接使用纹理，不再进行特殊变换
-            image.paste(texture, (pos_x, pos_z), texture)
+            # 如果模型渲染失败，使用传统纹理
+            if block_image is None:
+                face = block.get_texture_face('top')
+                block_image = texture_manager.get_texture(block.name, face)
+            
+            # 贴到图像上
+            image.paste(block_image, (pos_x, pos_z), block_image)
         
         # 缩放图像
         if scale != 1:
@@ -176,6 +191,8 @@ class FrontViewProcessor(AbstractRenderProcessor[Image.Image]):
         bounds = cast(Tuple[int, int, int, int, int, int], context.get("bounds"))
         scale = cast(int, context.get("scale", 1))
         z_position = context.get("front_z")
+        use_block_models = cast(bool, context.get("use_block_models", True))
+        model_renderer = context.get("model_renderer")
         
         if not world or not texture_manager or not bounds:
             raise ValueError("上下文中缺少必要对象")
@@ -198,17 +215,28 @@ class FrontViewProcessor(AbstractRenderProcessor[Image.Image]):
             # 检查是否是最前层方块
             if z == z_position:
                 visible_blocks.append((x, y, block))
-        
+            
         # 渲染方块
         for x, y, block in visible_blocks:
             pos_x = (x - min_x) * texture_manager.texture_size
-            pos_y = (max_y - y) * texture_manager.texture_size
+            pos_y = (max_y - y) * texture_manager.texture_size - texture_manager.texture_size
             
-            face = block.get_texture_face('front')
-            texture = texture_manager.get_texture(block.name, face)
+            # 尝试使用模型渲染
+            block_image = None
+            if use_block_models and model_renderer and hasattr(block, "model_data") and block.model_data:
+                # 在这里复制model_data，并添加facing属性
+                model_data = dict(block.model_data)
+                if block.facing:
+                    model_data["facing"] = block.facing
+                block_image = model_renderer.render_model_face(model_data, "north")
             
-            # 直接使用纹理，不再进行特殊变换
-            image.paste(texture, (pos_x, pos_y), texture)
+            # 如果模型渲染失败，使用传统纹理
+            if block_image is None:
+                face = block.get_texture_face('front')
+                block_image = texture_manager.get_texture(block.name, face)
+            
+            # 贴到图像上
+            image.paste(block_image, (pos_x, pos_y), block_image)
         
         # 缩放图像
         if scale != 1:
@@ -241,6 +269,8 @@ class SideViewProcessor(AbstractRenderProcessor[Image.Image]):
         bounds = cast(Tuple[int, int, int, int, int, int], context.get("bounds"))
         scale = cast(int, context.get("scale", 1))
         x_position = context.get("side_x")
+        use_block_models = cast(bool, context.get("use_block_models", True))
+        model_renderer = context.get("model_renderer")
         
         if not world or not texture_manager or not bounds:
             raise ValueError("上下文中缺少必要对象")
@@ -260,20 +290,31 @@ class SideViewProcessor(AbstractRenderProcessor[Image.Image]):
         visible_blocks: List[Tuple[int, int, Block]] = []
         for block in world.blocks:
             x, y, z = block.position
-            # 检查是否是侧面方块
+            # 检查是否是最侧面方块
             if x == x_position:
                 visible_blocks.append((z, y, block))
-        
+            
         # 渲染方块
         for z, y, block in visible_blocks:
             pos_z = (z - min_z) * texture_manager.texture_size
-            pos_y = (max_y - y) * texture_manager.texture_size
+            pos_y = (max_y - y) * texture_manager.texture_size - texture_manager.texture_size
             
-            face = block.get_texture_face('side')
-            texture = texture_manager.get_texture(block.name, face)
+            # 尝试使用模型渲染
+            block_image = None
+            if use_block_models and model_renderer and hasattr(block, "model_data") and block.model_data:
+                # 在这里复制model_data，并添加facing属性
+                model_data = dict(block.model_data)
+                if block.facing:
+                    model_data["facing"] = block.facing
+                block_image = model_renderer.render_model_face(model_data, "east")
             
-            # 直接使用纹理，不再进行特殊变换
-            image.paste(texture, (pos_z, pos_y), texture)
+            # 如果模型渲染失败，使用传统纹理
+            if block_image is None:
+                face = block.get_texture_face('side')
+                block_image = texture_manager.get_texture(block.name, face)
+            
+            # 贴到图像上
+            image.paste(block_image, (pos_z, pos_y), block_image)
         
         # 缩放图像
         if scale != 1:
@@ -363,4 +404,46 @@ class ViewCombinerProcessor(AbstractRenderProcessor[Image.Image]):
                 views[key.replace("result_", "")] = value
         
         # 组合视图
-        return self.view_combiner.combine(views, self.layout_name, context) 
+        return self.view_combiner.combine(views, self.layout_name, context)
+
+
+class ModelRendererProcessor(AbstractRenderProcessor[Any]):
+    """模型渲染处理器，用于加载和准备方块模型数据"""
+    
+    def __init__(self) -> None:
+        """初始化模型渲染处理器"""
+        super().__init__("model_renderer")
+    
+    def process(self, context: RenderContext) -> Any:
+        """
+        处理渲染上下文，应用模型渲染
+        
+        Args:
+            context: 渲染上下文
+            
+        Returns:
+            RenderContext: 处理后的上下文
+        """
+        # 获取必要数据
+        world = context.get("world")
+        texture_manager = context.get("texture_manager")
+        resource_dir = context.get("resource_dir", "./resource")
+        use_block_models = context.get("use_block_models", True)
+        
+        if not use_block_models or not world or not texture_manager:
+            return context
+        
+        # 创建模型加载器
+        model_loader = ModelLoader(resource_dir)
+        context.set("model_loader", model_loader)
+        
+        # 创建模型渲染器
+        model_renderer = ModelRenderer(texture_manager)
+        context.set("model_renderer", model_renderer)
+        
+        # 为每个方块加载模型
+        for block in world.blocks:
+            if not hasattr(block, "model_data") or block.model_data is None:
+                block.model_data = model_loader.load_model(block.name)
+        
+        return context 

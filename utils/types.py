@@ -43,6 +43,11 @@ class FileInfo(TypedDict):
     path: str
     category: str
 
+# 模型数据结构
+BlockModelElement = Dict[str, Any]  # 表示模型中的一个几何元素
+BlockModelFace = Dict[str, Any]     # 表示元素的一个面
+BlockModelData = Dict[str, Any]     # 整个模型数据
+
 # 渲染相关类型
 ViewType = Literal["top", "front", "side", "north", "south", "east", "west", "combined"]
 LayoutType = Literal["vertical", "horizontal", "grid", "stacked", "combined", "v", "h", "g", "s", "c"] 

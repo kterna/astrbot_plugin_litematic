@@ -22,7 +22,8 @@ class PreviewCommand:
         self.render_manager: RenderManager = render_manager
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", 
-                     view_type: str = "combined", layout: str = "", spacing: int = 0, add_labels: bool = False) -> MessageResponse:
+                     view_type: str = "combined", layout: str = "", spacing: int = 0, 
+                     add_labels: bool = False, use_block_models: bool = True) -> MessageResponse:
         """
         渲染并预览litematic文件
         
@@ -34,6 +35,7 @@ class PreviewCommand:
             layout: 布局类型，支持vertical/horizontal/grid/stacked/combined
             spacing: 视图间距
             add_labels: 是否添加标签
+            use_block_models: 是否使用方块模型
             
         Yields:
             MessageChain: 响应消息
@@ -53,6 +55,8 @@ class PreviewCommand:
                         pass
                 elif part == "labels":
                     add_labels = True
+                elif part == "nomodel":
+                    use_block_models = False
         
         # 验证参数
         if not category or not filename:
@@ -73,7 +77,8 @@ class PreviewCommand:
                 scale=1, 
                 layout=layout,
                 spacing=spacing,
-                add_labels=add_labels
+                add_labels=add_labels,
+                use_block_models=use_block_models
             )
             
             # 准备消息链
@@ -187,6 +192,7 @@ class PreviewCommand:
             "- combined/c: 综合布局(默认)\n\n"
             "可选参数：\n"
             "- spacing=数字: 设置间距\n"
-            "- labels: 添加标签\n\n"
-            "例如：/投影预览 建筑 房子 combined:v:spacing=10:labels"
+            "- labels: 添加标签\n"
+            "- nomodel: 禁用方块模型渲染\n\n"
+            "例如：/投影预览 建筑 房子 combined:v:spacing=10:labels:nomodel"
         ) 
