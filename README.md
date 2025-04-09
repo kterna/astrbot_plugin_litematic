@@ -2,6 +2,9 @@
 
 用于管理和共享 Minecraft `.litematic` 文件的 AstrBot 插件。
 
+[![moe_counter](https://count.getloli.com/get/@astrbot_plugin_litematic?theme=moebooru)](https://github.com/kterna/astrbot_plugin_litematic)
+
+
 ## 功能特点
 
 - 📁 **分类管理**：按类别整理存储 litematic 文件
