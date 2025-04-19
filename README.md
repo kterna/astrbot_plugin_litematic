@@ -19,6 +19,7 @@
 
 ![示例](image/红石.png)
 ![示例](image/建筑.png)
+![示例](image/3D渲染.gif)
 
 ## 使用方法
 
