@@ -10,6 +10,7 @@ from astrbot.api.star import Star, register, Context
 from .services.file_manager import FileManager
 from .services.category_manager import CategoryManager
 from .services.render_manager import RenderManager
+from .services.render_3d_manager import Render3DManager
 from .utils.config import Config
 from .commands.get_command import GetCommand
 from .commands.delete_command import DeleteCommand
@@ -18,8 +19,9 @@ from .commands.list_command import ListCommand
 from .commands.material_command import MaterialCommand
 from .commands.info_command import InfoCommand
 from .commands.preview_command import PreviewCommand
+from .commands.render3d_command import Render3DCommand
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.1.1", "https://github.com/kterna/astrbot_plugin_litematic")
+@register("litematic", "kterna", "读取处理Litematic文件", "1.3.0", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context) -> None:
         super().__init__(context)
@@ -31,6 +33,7 @@ class LitematicPlugin(Star):
         self.category_manager: CategoryManager = CategoryManager(self.config)
         self.file_manager: FileManager = FileManager(self.config, self.category_manager)
         self.render_manager: RenderManager = RenderManager(self.config)
+        self.render_3d_manager: Render3DManager = Render3DManager(self.config)
         
         # 初始化命令处理器
         self.upload_command: UploadCommand = UploadCommand(self.file_manager, self.category_manager)
@@ -40,6 +43,7 @@ class LitematicPlugin(Star):
         self.material_command: MaterialCommand = MaterialCommand(self.file_manager, self.category_manager)
         self.info_command: InfoCommand = InfoCommand(self.file_manager, self.category_manager)
         self.preview_command: PreviewCommand = PreviewCommand(self.file_manager, self.render_manager)
+        self.render3d_command: Render3DCommand = Render3DCommand(self.file_manager, self.render_3d_manager)
         
         # 保留原有变量以保持兼容性
         plugin_dir: str = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +72,13 @@ class LitematicPlugin(Star):
         使用方法：
         /投影 - 查看帮助
         /投影 分类名 - 上传文件到指定分类
+        /投影列表 分类名 - 列出指定分类下的文件
+        /投影删除 分类名 - 删除指定分类及其下所有文件
+        /投影获取 分类名 文件名 - 发送指定分类下的文件
+        /投影材料 分类名 文件名 - 分析指定分类下文件所需的材料
+        /投影信息 分类名 文件名 - 分析指定分类下文件的详细信息
+        /投影预览 分类名 文件名 - 生成并显示litematic的2D预览图
+        /投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
         
         Args:
             event: 消息事件
@@ -198,18 +209,44 @@ class LitematicPlugin(Star):
         使用方法：
         /投影预览 分类名 文件名 - 生成并显示litematic的预览图
         /投影预览 分类名 文件名 视角 - 生成并显示指定视角的预览图
-        支持的视角: top(俯视图), front(正视图), side(侧视图), combined(综合视图), 
-                north(北面), south(南面), east(东面), west(西面)
-                
+        
         Args:
             event: 消息事件
             category: 分类名称，默认为空字符串
             filename: 文件名，默认为空字符串
-            view: 视图类型，默认为"combined"
+            view: 视角类型，默认为"combined"
             
         Yields:
             MessageChain: 响应消息
         """
         # 使用PreviewCommand处理投影预览命令
         async for response in self.preview_command.execute(event, category, filename, view):
+            yield response
+    
+    @filter.command("投影3D", alias=["litematic_3d"])
+    async def litematic_3d(self, event: AstrMessageEvent, category: str = "", filename: str = "", 
+                         animation_type: str = "rotation", frames: int = 36, 
+                         duration: int = 100, elevation: float = 30.0) -> AsyncGenerator[MessageChain, None]:
+        """
+        生成litematic文件的3D渲染动画
+        使用方法：
+        /投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
+        /投影3D 分类名 文件名 动画类型 帧数 持续时间 仰角 - 自定义参数生成3D渲染动画
+        
+        Args:
+            event: 消息事件
+            category: 分类名称
+            filename: 文件名
+            animation_type: 动画类型 (rotation/orbit/zoom)，默认为"rotation"
+            frames: 帧数，默认为36
+            duration: 每帧持续时间(毫秒)，默认为100
+            elevation: 相机仰角(度)，默认为30.0
+            
+        Yields:
+            MessageChain: 响应消息
+        """
+        # 使用Render3DCommand处理投影3D命令
+        async for response in self.render3d_command.execute(
+            event, category, filename, animation_type, int(frames), int(duration), float(elevation)
+        ):
             yield response

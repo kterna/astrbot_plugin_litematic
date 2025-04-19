@@ -9,6 +9,7 @@ from .get_command import GetCommand
 from .material_command import MaterialCommand
 from .info_command import InfoCommand
 from .preview_command import PreviewCommand
+from .render3d_command import Render3DCommand
 
 __all__ = [
     'UploadCommand',
@@ -18,4 +19,5 @@ __all__ = [
     'MaterialCommand',
     'InfoCommand',
     'PreviewCommand',
+    'Render3DCommand',
 ] 

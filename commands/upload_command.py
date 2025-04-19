@@ -27,6 +27,13 @@ class UploadCommand:
         使用方法：
         /投影 - 查看帮助
         /投影 分类名 - 上传文件到指定分类
+        /投影列表 分类名 - 列出指定分类下的文件
+        /投影删除 分类名 - 删除指定分类及其下所有文件
+        /投影获取 分类名 文件名 - 发送指定分类下的文件
+        /投影材料 分类名 文件名 - 分析指定分类下文件所需的材料
+        /投影信息 分类名 文件名 - 分析指定分类下文件的详细信息
+        /投影预览 分类名 文件名 - 生成并显示litematic的2D预览图
+        /投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
         
         Args:
             event: 消息事件
@@ -40,10 +47,20 @@ class UploadCommand:
             if not category or category == "default":
                 categories_text = "\n".join([f"- {cat}" for cat in await self.category_manager.get_categories_async()])
                 yield event.plain_result(
-                    f"投影\n"
-                    f"请提供分类名称,例如: /投影 建筑\n"
-                    f"当前可用分类：\n{categories_text}"
-                )
+                    f"""投影
+上传litematic到指定分类文件夹下使用方法：
+/投影 - 查看帮助
+/投影 分类名 - 上传文件到指定分类
+/投影列表 分类名 - 列出指定分类下的文件
+/投影删除 分类名 - 删除指定分类及其下所有文件
+/投影获取 分类名 文件名 - 发送指定分类下的文件
+/投影材料 分类名 文件名 - 分析指定分类下文件所需的材料
+/投影信息 分类名 文件名 - 分析指定分类下文件的详细信息
+/投影预览 分类名 文件名 - 生成并显示litematic的2D预览图
+/投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
+请提供分类名称,例如: /投影 建筑
+当前可用分类：
+{categories_text}""")
                 return
             
             # 处理新分类
