@@ -8,7 +8,7 @@ from .texture_manager import TextureManager
 from .config_loader import ConfigLoader
 from .projection import Projection
 from .build_model import World
-from .interfaces import RenderContext, IRenderer, IImageSaver
+from .interfaces import RenderContext
 from .render_pipeline import RenderPipeline
 from .render_processors import (
     BoundsCalculatorProcessor, 
@@ -153,7 +153,7 @@ class RenderEngine:
     
     def render_top_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
                         min_z: Optional[int] = None, max_z: Optional[int] = None, 
-                        scale: int = 1, use_block_models: bool = True) -> Image.Image:
+                        scale: int = 1) -> Image.Image:
         """渲染俯视图
         
         Args:
@@ -162,7 +162,6 @@ class RenderEngine:
             min_z: Z轴最小坐标
             max_z: Z轴最大坐标
             scale: 缩放比例
-            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -172,7 +171,6 @@ class RenderEngine:
         context.set("world", self.world)
         context.set("scale", scale)
         context.set("resource_dir", self.resource_base_path)
-        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_x is not None and max_x is not None and min_z is not None and max_z is not None:
@@ -185,7 +183,7 @@ class RenderEngine:
     
     def render_front_view(self, min_x: Optional[int] = None, max_x: Optional[int] = None, 
                           min_y: Optional[int] = None, max_y: Optional[int] = None, 
-                          z: Optional[int] = None, scale: int = 1, use_block_models: bool = True) -> Image.Image:
+                          z: Optional[int] = None, scale: int = 1) -> Image.Image:
         """渲染正视图
         
         Args:
@@ -195,7 +193,6 @@ class RenderEngine:
             max_y: Y轴最大坐标
             z: Z轴位置
             scale: 缩放比例
-            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -206,7 +203,6 @@ class RenderEngine:
         context.set("scale", scale)
         context.set("front_z", z)
         context.set("resource_dir", self.resource_base_path)
-        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_x is not None and max_x is not None and min_y is not None and max_y is not None:
@@ -219,7 +215,7 @@ class RenderEngine:
     
     def render_side_view(self, min_z: Optional[int] = None, max_z: Optional[int] = None, 
                          min_y: Optional[int] = None, max_y: Optional[int] = None, 
-                         x: Optional[int] = None, scale: int = 1, use_block_models: bool = True) -> Image.Image:
+                         x: Optional[int] = None, scale: int = 1) -> Image.Image:
         """渲染侧视图
         
         Args:
@@ -229,7 +225,6 @@ class RenderEngine:
             max_y: Y轴最大坐标
             x: X轴位置
             scale: 缩放比例
-            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -240,7 +235,6 @@ class RenderEngine:
         context.set("scale", scale)
         context.set("side_x", x)
         context.set("resource_dir", self.resource_base_path)
-        context.set("use_block_models", use_block_models)
         
         # 如果提供了坐标，设置到上下文
         if min_z is not None and max_z is not None and min_y is not None and max_y is not None:
@@ -251,12 +245,11 @@ class RenderEngine:
         # 执行管道
         return self.side_view_pipeline.execute(context)
     
-    def render_all_views(self, scale: int = 1, use_block_models: bool = True) -> Image.Image:
+    def render_all_views(self, scale: int = 1) -> Image.Image:
         """渲染所有视图并拼接
         
         Args:
             scale: 缩放比例
-            use_block_models: 是否使用方块模型
             
         Returns:
             Image.Image: 渲染后的图像
@@ -266,7 +259,6 @@ class RenderEngine:
         context.set("world", self.world)
         context.set("scale", scale)
         context.set("resource_dir", self.resource_base_path)
-        context.set("use_block_models", use_block_models)
         
         # 执行管道
         return self.combined_view_pipeline.execute(context)
@@ -292,65 +284,27 @@ class RenderEngine:
         context.set("scale", options.scale)
         context.set("render_options", options)
         context.set("resource_dir", self.resource_base_path)
-        context.set("use_block_models", options.use_block_models)
         
         # 渲染各个视图
         top_view = self.render_top_view(
-            scale=options.scale, 
-            use_block_models=options.use_block_models
+            scale=options.scale
         )
         front_view = self.render_front_view(
-            scale=options.scale, 
-            use_block_models=options.use_block_models
+            scale=options.scale
         )
         side_view = self.render_side_view(
-            scale=options.scale, 
-            use_block_models=options.use_block_models
+            scale=options.scale
         )
         
-        # 根据布局类型使用不同的布局
-        views = {
-            'top_view': top_view,
-            'front_view': front_view,
-            'side_view': side_view
-        }
+        # 使用简化后的视图组合器组合视图
+        views = [top_view, front_view, side_view]
         
-        # 使用视图组合器组合视图
-        from .view_combiner import (
-            VerticalLayout, HorizontalLayout, GridLayout, 
-            StackedLayout, CustomCombinedLayout
+        # 使用新的combine_views方法
+        return self.view_combiner.combine_views(
+            views, 
+            layout_type=layout_type, 
+            spacing=options.spacing
         )
-        
-        # 根据布局类型创建对应的布局实例
-        layout = None
-        if layout_type == "vertical":
-            layout = VerticalLayout(spacing=options.spacing)
-        elif layout_type == "horizontal":
-            layout = HorizontalLayout(spacing=options.spacing)
-        elif layout_type == "grid":
-            layout = GridLayout(
-                rows=options.grid_rows, 
-                cols=options.grid_cols,
-                h_spacing=options.spacing,
-                v_spacing=options.spacing
-            )
-        elif layout_type == "stacked":
-            layout = StackedLayout(
-                x_offset=options.stack_x_offset,
-                y_offset=options.stack_y_offset
-            )
-        else:  # 默认使用自定义组合布局
-            layout = CustomCombinedLayout(
-                spacing=options.spacing,
-                add_labels=options.add_labels
-            )
-        
-        # 注册临时布局
-        if layout:
-            self.view_combiner.register_layout(layout)
-        
-        # 组合视图
-        return self.view_combiner.combine(views, layout_type, context)
     
     def _get_structure_bounds(self) -> Tuple[int, int, int, int, int, int]:
         """获取结构边界坐标

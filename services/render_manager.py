@@ -33,8 +33,7 @@ class RenderManager:
         self.render_facade: RenderFacade = RenderFacade(resource_dir=self.resource_dir)
     
     def render_litematic(self, file_path: str, view_type: str = "combined", scale: int = 1, 
-                         layout: str = "", spacing: int = 0, add_labels: bool = False,
-                         use_block_models: bool = True) -> str:
+                         layout: str = "", spacing: int = 0) -> str:
         """
         渲染litematic文件
         
@@ -44,8 +43,6 @@ class RenderManager:
             scale: 缩放比例
             layout: 布局类型，支持vertical/horizontal/grid/stacked/combined
             spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
             
         Returns:
             str: 临时图像文件路径
@@ -55,12 +52,11 @@ class RenderManager:
             RenderError: 渲染过程出错时
         """
         return self._sync_render_litematic(
-            file_path, view_type, scale, layout, spacing, add_labels, use_block_models
+            file_path, view_type, scale, layout, spacing
         )
     
     async def render_litematic_async(self, file_path: str, view_type: str = "combined", scale: int = 1,
-                                   layout: str = "", spacing: int = 0, add_labels: bool = False,
-                                   use_block_models: bool = True) -> str:
+                                   layout: str = "", spacing: int = 0) -> str:
         """
         异步渲染litematic文件
         
@@ -72,8 +68,6 @@ class RenderManager:
             scale: 缩放比例
             layout: 布局类型，支持vertical/horizontal/grid/stacked/combined
             spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
             
         Returns:
             str: 临时图像文件路径
@@ -83,13 +77,11 @@ class RenderManager:
             RenderError: 渲染过程出错时
         """
         return await asyncio.to_thread(
-            self._sync_render_litematic, file_path, view_type, scale, layout, 
-            spacing, add_labels, use_block_models
+            self._sync_render_litematic, file_path, view_type, scale, layout, spacing
         )
     
     def _sync_render_litematic(self, file_path: str, view_type: str = "combined", scale: int = 1,
-                             layout: str = "", spacing: int = 0, add_labels: bool = False,
-                             use_block_models: bool = True) -> str:
+                             layout: str = "", spacing: int = 0) -> str:
         """
         同步渲染litematic文件（内部方法）
         
@@ -99,8 +91,6 @@ class RenderManager:
             scale: 缩放比例
             layout: 布局类型，支持vertical/horizontal/grid/stacked/combined
             spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
             
         Returns:
             str: 临时图像文件路径
@@ -119,14 +109,17 @@ class RenderManager:
             if not self.render_facade.load_litematic(file_path):
                 raise RenderError("无法加载litematic文件", code=1001)
             
+            # 为新的接口准备选项
+            options = {
+                "spacing": spacing
+            }
+            
             # 渲染图像
             image = self.render_facade.render(
                 view_type=view_type,
                 scale=scale,
                 layout=layout,
-                spacing=spacing,
-                add_labels=add_labels,
-                use_block_models=use_block_models
+                options=options
             )
             
             if image is None:

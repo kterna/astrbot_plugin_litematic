@@ -78,41 +78,31 @@ class Render3DManager:
         """
         try:
             # 1. 加载litematic文件
-            logger.info(f"开始加载Litematic文件: {file_path}")
             schematic = Schematic.load(file_path)
-            logger.info(f"Litematic文件加载成功: {schematic.name}")
             
             # 2. 构建3D模型
-            logger.info("构建3D模型...")
             model_builder = ModelBuilder()
             if not model_builder.build_from_litematic(schematic):
                 raise RenderError("构建3D模型失败", code=2001)
                 
             model_data = model_builder.get_model_data()
-            logger.info(f"模型构建完成，包含 {model_builder.get_block_count()} 个方块")
             
             # 3. 检测可见表面
-            logger.info("检测可见表面...")
             surface_detector = SurfaceDetector(model_data)
             surface_detector.detect_visible_surfaces()
             surface_data = surface_detector.get_surface_data_for_rendering()
-            logger.info(f"检测到 {len(surface_data)} 个可见表面")
             
             # 4. 创建颜色映射器
-            logger.info("创建颜色映射...")
             color_mapper = ColorMapper(self.resource_dir)
             
             # 5. 创建渲染器
-            logger.info("创建渲染器...")
             renderer = PyVistaRenderer(model_data, surface_data, color_mapper)
             
             # 6. 创建网格
-            logger.info("创建网格...")
             if not renderer.create_mesh():
                 raise RenderError("创建网格失败", code=2002)
             
             # 7. 生成动画
-            logger.info(f"生成{animation_type}动画...")
             animation_generator = AnimationGenerator(renderer)
             
             # 根据动画类型选择不同的生成方法
@@ -143,10 +133,8 @@ class Render3DManager:
                 raise RenderError(f"生成{animation_type}动画失败", code=2003)
                 
             frames_list = animation_generator.get_frames()
-            logger.info(f"动画生成完成，共 {len(frames_list)} 帧")
             
             # 8. 导出GIF
-            logger.info("导出GIF...")
             gif_exporter = GifExporter()
             
             # 如果需要优化大小
@@ -159,8 +147,6 @@ class Render3DManager:
             
             if not temp_gif_path:
                 raise RenderError("导出GIF失败", code=2004)
-                
-            logger.info(f"GIF导出完成: {temp_gif_path}")
             
             return temp_gif_path
             

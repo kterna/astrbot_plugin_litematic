@@ -1,7 +1,7 @@
 import os
 import traceback
 import asyncio
-from typing import Dict, List, Optional
+from typing import Dict
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
@@ -9,24 +9,26 @@ from ..services.file_manager import FileManager
 from ..services.render_manager import RenderManager, LAYOUT_MAPPING
 from ..utils.types import CategoryType, FilePath, MessageResponse
 from ..utils.exceptions import (
-    CategoryNotFoundError, 
-    FileNotFoundError, 
+    CategoryNotFoundError,
+    FileNotFoundError,
     LitematicPluginError,
     RenderError,
     InvalidViewTypeError
 )
+from ..utils.button_utils import ButtonUtils
+from ..utils.logging_utils import log_operation
 
 class PreviewCommand:
-    def __init__(self, file_manager: FileManager, render_manager: RenderManager) -> None:
+    def __init__(self, file_manager: FileManager, render_manager: RenderManager, button_utils: ButtonUtils = None) -> None:
         self.file_manager: FileManager = file_manager
         self.render_manager: RenderManager = render_manager
-    
-    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", 
-                     view_type: str = "combined", layout: str = "", spacing: int = 0, 
-                     add_labels: bool = False, use_block_models: bool = True) -> MessageResponse:
+        self.button_utils: ButtonUtils = button_utils
+
+    async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "",
+                     view_type: str = "combined", layout: str = "", spacing: int = 0) -> MessageResponse:
         """
         渲染并预览litematic文件
-        
+
         Args:
             event: 消息事件
             category: 分类名称
@@ -34,9 +36,7 @@ class PreviewCommand:
             view_type: 视图类型，支持top/front/side/north/south/east/west/combined
             layout: 布局类型，支持vertical/horizontal/grid/stacked/combined
             spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
-            
+
         Yields:
             MessageChain: 响应消息
         """
@@ -53,55 +53,60 @@ class PreviewCommand:
                         spacing = int(part.split("=")[1])
                     except ValueError:
                         pass
-                elif part == "labels":
-                    add_labels = True
-                elif part == "nomodel":
-                    use_block_models = False
-        
+
         # 验证参数
         if not category or not filename:
             yield event.plain_result(self._get_help_text())
             return
-        
+
         try:
             # 发送加载提示
             yield event.plain_result("正在生成预览图，请稍候...")
-            
+
             # 获取文件路径 - 使用异步方法
             file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
-            
+
             # 渲染litematic文件 - 使用异步方法
             image_path: FilePath = await self.render_manager.render_litematic_async(
-                file_path, 
-                view_type, 
-                scale=1, 
+                file_path,
+                view_type,
+                scale=1,
                 layout=layout,
-                spacing=spacing,
-                add_labels=add_labels,
-                use_block_models=use_block_models
+                spacing=spacing
             )
-            
+
             # 准备消息链
             message: MessageChain = MessageChain()
             message.chain.append(Image.fromFileSystem(image_path))
-            
+
             # 发送图像
             await event.send(message)
-            
+
             # 获取视图说明
             caption = self._get_view_caption(view_type)
             layout_caption = self._get_layout_caption(layout) if layout else ""
             caption_text = f"【{os.path.basename(file_path)}】{caption}"
             if layout_caption:
                 caption_text += f" - {layout_caption}"
-            
-            # 发送说明文本
-            yield event.plain_result(caption_text)
-            
+
+            # 检查按钮插件是否安装
+            button_plugin = None
+            if self.button_utils:
+                button_plugin = self.button_utils.get_button_plugin()
+
+            if button_plugin and button_plugin.star_cls:
+                # 按钮插件已安装，只显示按钮
+                log_operation("添加预览操作按钮", True, {"category": category, "filename": filename, "view_type": view_type})
+                buttons_info = self.button_utils.create_preview_buttons(category, filename)
+                await self.button_utils.send_buttons(event, buttons_info)
+            else:
+                # 按钮插件未安装，显示文字
+                yield event.plain_result(caption_text)
+
             # 删除临时图像文件 - 使用异步删除
             if os.path.exists(image_path):
                 await asyncio.to_thread(os.remove, image_path)
-                
+
         except FileNotFoundError as e:
             yield event.plain_result(e.message)
         except CategoryNotFoundError as e:
@@ -118,14 +123,14 @@ class PreviewCommand:
             logger.error(f"生成预览图时出现未知错误: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"生成预览图时出现错误: {str(e)}")
-    
+
     def _get_view_caption(self, view_type: str) -> str:
         """
         获取视图类型对应的说明文字
-        
+
         Args:
             view_type: 视图类型
-            
+
         Returns:
             str: 说明文字
         """
@@ -141,14 +146,14 @@ class PreviewCommand:
             "combined": "综合视图 (俯视图 + 正视图 + 侧视图)"
         }
         return captions.get(view_type, "综合视图")
-    
+
     def _get_layout_caption(self, layout: str) -> str:
         """
         获取布局类型对应的说明文字
-        
+
         Args:
             layout: 布局类型
-            
+
         Returns:
             str: 说明文字
         """
@@ -166,11 +171,11 @@ class PreviewCommand:
             "c": "综合布局"
         }
         return captions.get(layout, "")
-    
+
     def _get_help_text(self) -> str:
         """
         获取帮助文本
-        
+
         Returns:
             str: 帮助文本
         """
@@ -191,8 +196,6 @@ class PreviewCommand:
             "- stacked/s: 堆叠布局\n"
             "- combined/c: 综合布局(默认)\n\n"
             "可选参数：\n"
-            "- spacing=数字: 设置间距\n"
-            "- labels: 添加标签\n"
-            "- nomodel: 禁用方块模型渲染\n\n"
-            "例如：/投影预览 建筑 房子 combined:v:spacing=10:labels:nomodel"
-        ) 
+            "- spacing=数字: 设置间距\n\n"
+            "例如：/投影预览 建筑 房子 combined:v:spacing=10"
+        )

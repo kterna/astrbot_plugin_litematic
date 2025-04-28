@@ -7,7 +7,6 @@ import json
 
 from .build_model import World, Block
 from .render_engine import RenderEngine
-from .interfaces import IRenderer, IImageSaver
 
 class Render2D:
     """2D渲染器，用于从World对象中提取信息并渲染Minecraft结构的2D投影预览图像"""

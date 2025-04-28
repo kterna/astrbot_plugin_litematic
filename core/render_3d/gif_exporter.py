@@ -13,8 +13,8 @@ class GifExporter:
         self.config = {
             'duration': 100,       # 每帧持续时间（毫秒）
             'loop': 0,             # 循环次数（0表示无限循环）
-            'optimize': True,      # 优化GIF
-            'quality': 80,         # 质量（越高越好，但文件也越大）
+            'optimize': False,      # 优化GIF
+            'quality': 100,         # 质量（越高越好，但文件也越大）
             'disposal': 2          # 帧处理方式（2表示恢复到背景）
         }
     
@@ -130,8 +130,7 @@ class GifExporter:
         """
         优化GIF大小
         
-        如果预计的GIF大小超过max_size（以字节为单位），
-        则尝试通过降低分辨率来减小大小
+        根据最大文件大小限制，将所有帧调整为固定的最大尺寸
         
         Args:
             frames: 图像帧列表
@@ -142,29 +141,13 @@ class GifExporter:
         """
         if not frames:
             return []
-            
-        # 估计每像素大约需要的字节数（颜色表+像素数据）
-        bytes_per_pixel = 0.25
-        frame_count = len(frames)
         
-        # 获取当前尺寸
-        width, height = frames[0].size
+        # 固定输出尺寸
+        FIXED_WIDTH = 1920
+        FIXED_HEIGHT = 1080
         
-        # 估算当前大小
-        estimated_size = width * height * bytes_per_pixel * frame_count
-        
-        if estimated_size <= max_size:
-            return frames
-            
-        # 计算需要的缩放因子
-        scale_factor = (max_size / estimated_size) ** 0.5
-        
-        # 计算新尺寸
-        new_width = max(1, int(width * scale_factor))
-        new_height = max(1, int(height * scale_factor))
-        
-        # 调整所有帧的大小
-        return self.resize_frames(frames, new_width, new_height)
+        # 调整所有帧的大小为固定尺寸
+        return self.resize_frames(frames, FIXED_WIDTH, FIXED_HEIGHT)
     
     def set_config(self, config: Dict[str, Any]) -> None:
         """

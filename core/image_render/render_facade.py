@@ -4,14 +4,11 @@ from PIL import Image
 
 from .render_engine import RenderEngine, RenderOptions
 from .build_model import World
-from .texture_manager import TextureManager
 from ...utils.types import FilePath, ViewType, LayoutType
 
 class RenderFacade:
     """
-    渲染门面类 - 提供一个简单统一的API来访问复杂的渲染功能
-    
-    这个类隐藏了内部渲染逻辑的复杂性，为使用者提供简单清晰的API
+    渲染门面类 - 提供一个简单统一的API来访问渲染功能
     """
     
     def __init__(self, resource_dir: str) -> None:
@@ -22,7 +19,6 @@ class RenderFacade:
             resource_dir: 资源目录路径
         """
         self.resource_dir = resource_dir
-        self.texture_manager = None
         self._current_world = None
         self._current_engine = None
     
@@ -58,9 +54,7 @@ class RenderFacade:
     def render(self, view_type: str = "combined", 
                scale: int = 1, 
                layout: str = "",
-               spacing: int = 0,
-               add_labels: bool = False,
-               use_block_models: bool = True) -> Optional[Image.Image]:
+               options: Dict[str, Any] = None) -> Optional[Image.Image]:
         """
         渲染当前加载的Litematic文件
         
@@ -68,9 +62,7 @@ class RenderFacade:
             view_type: 视图类型 (top/front/side/north/south/east/west/combined)
             scale: 缩放比例
             layout: 布局类型 (vertical/horizontal/grid/stacked)
-            spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
+            options: 附加选项字典
             
         Returns:
             Optional[Image.Image]: 渲染后的图像，失败返回None
@@ -80,11 +72,16 @@ class RenderFacade:
             
         try:
             # 创建渲染选项
-            options = RenderOptions()
-            options.scale = scale
-            options.spacing = spacing
-            options.add_labels = add_labels
-            options.use_block_models = use_block_models
+            render_options = RenderOptions()
+            render_options.scale = scale
+            
+            # 合并附加选项
+            if options:
+                for key, value in options.items():
+                    if hasattr(render_options, key):
+                        setattr(render_options, key, value)
+                    else:
+                        render_options.custom_options[key] = value
             
             # 确定视图类型
             view_type = view_type.lower()
@@ -92,46 +89,47 @@ class RenderFacade:
             # 单视图渲染
             if view_type in ["top", "front", "north", "side", "east", "south", "west"]:
                 if view_type == "top":
-                    return self._current_engine.render_top_view(
-                        scale=scale, 
-                        use_block_models=use_block_models
-                    )
+                    return self._current_engine.render_top_view(scale=scale)
                 elif view_type in ["front", "north"]:
-                    return self._current_engine.render_front_view(
-                        scale=scale, 
-                        use_block_models=use_block_models
-                    )
+                    return self._current_engine.render_front_view(scale=scale)
                 elif view_type in ["side", "east"]:
-                    return self._current_engine.render_side_view(
-                        scale=scale, 
-                        use_block_models=use_block_models
-                    )
+                    return self._current_engine.render_side_view(scale=scale)
                 elif view_type == "south":
-                    return self._current_engine.render_front_view(
-                        z=0, 
-                        scale=scale, 
-                        use_block_models=use_block_models
-                    )
+                    return self._current_engine.render_front_view(z=0, scale=scale)
                 elif view_type == "west":
-                    return self._current_engine.render_side_view(
-                        x=0, 
-                        scale=scale, 
-                        use_block_models=use_block_models
-                    )
+                    return self._current_engine.render_side_view(x=0, scale=scale)
             
             # 组合视图渲染
             layout_type = self._map_layout_type(layout)
             if layout_type:
-                options.layout_type = layout_type
-                return self._current_engine.render_with_layout(layout_type, options)
+                render_options.layout_type = layout_type
+                return self._current_engine.render_with_layout(layout_type, render_options)
             else:
-                return self._current_engine.render_all_views(
-                    scale=scale, 
-                    use_block_models=use_block_models
-                )
+                return self._current_engine.render_all_views(scale=scale)
                 
         except Exception:
             return None
+    
+    def render_to_file(self, output_path: str, view_type: str = "combined", 
+                      scale: int = 1, layout: str = "", 
+                      options: Dict[str, Any] = None) -> bool:
+        """
+        渲染并直接保存到文件
+        
+        Args:
+            output_path: 输出文件路径
+            view_type: 视图类型
+            scale: 缩放比例
+            layout: 布局类型
+            options: 附加选项字典
+            
+        Returns:
+            bool: 是否成功
+        """
+        image = self.render(view_type, scale, layout, options)
+        if image:
+            return self.save_image(image, output_path)
+        return False
     
     def save_image(self, image: Image.Image, output_path: str, format: str = 'PNG') -> bool:
         """
@@ -155,37 +153,6 @@ class RenderFacade:
         except Exception:
             return False
     
-    def render_to_file(self, output_path: str, view_type: str = "combined", 
-                      scale: int = 1, layout: str = "", 
-                      spacing: int = 0, add_labels: bool = False,
-                      use_block_models: bool = True) -> bool:
-        """
-        渲染并直接保存到文件
-        
-        Args:
-            output_path: 输出文件路径
-            view_type: 视图类型
-            scale: 缩放比例
-            layout: 布局类型
-            spacing: 视图间距
-            add_labels: 是否添加标签
-            use_block_models: 是否使用方块模型
-            
-        Returns:
-            bool: 是否成功
-        """
-        image = self.render(
-            view_type, 
-            scale, 
-            layout, 
-            spacing, 
-            add_labels, 
-            use_block_models
-        )
-        if image:
-            return self.save_image(image, output_path)
-        return False
-    
     def get_bounds(self) -> Tuple[int, int, int, int, int, int]:
         """
         获取当前结构的边界
@@ -198,26 +165,14 @@ class RenderFacade:
         return self._current_engine._get_structure_bounds()
     
     def _map_layout_type(self, layout: str) -> str:
-        """
-        映射布局类型
-        
-        Args:
-            layout: 布局类型字符串
-            
-        Returns:
-            str: 内部布局类型
-        """
-        mapping = {
-            "vertical": "vertical",
-            "horizontal": "horizontal",
-            "grid": "grid",
-            "stacked": "stacked",
-            "combined": "custom_combined",
-            "default": "custom_combined",
-            "v": "vertical",
-            "h": "horizontal",
-            "g": "grid",
-            "s": "stacked",
-            "c": "custom_combined"
-        }
-        return mapping.get(layout.lower(), "") 
+        """将布局字符串映射到布局类型"""
+        layout = layout.lower()
+        if layout in ["vertical", "v"]:
+            return "vertical"
+        elif layout in ["horizontal", "h"]:
+            return "horizontal"
+        elif layout in ["grid", "g"]:
+            return "grid"
+        elif layout in ["stacked", "s"]:
+            return "stacked"
+        return "custom_combined" 
