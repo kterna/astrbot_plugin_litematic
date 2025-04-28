@@ -115,17 +115,17 @@ class LitematicPlugin(Star):
         # 如果没有指定分类，显示帮助和主菜单按钮
         if category == "default":
 
-            # 检查按钮插件是否安装
-            button_plugin = None
-            if self.button_utils:
-                button_plugin = self.button_utils.get_button_plugin()
-
-            if button_plugin and button_plugin.star_cls:
-                # 按钮插件已安装，只显示按钮
+            # 检查按钮插件是否安装且启用
+            if self.button_utils and self.button_utils.is_button_enabled():
+                # 按钮插件已安装且启用，显示按钮
                 buttons_info = self.button_utils.create_main_menu_buttons()
-                await self.button_utils.send_buttons(event, buttons_info)
+                button_sent = await self.button_utils.send_buttons(event, buttons_info)
+
+                # 如果按钮发送失败，显示文字
+                if not button_sent:
+                    yield event.plain_result(help_text)
             else:
-                # 按钮插件未安装，显示文字
+                # 按钮插件未安装或未启用，显示文字
                 yield event.plain_result(help_text)
 
             return
@@ -307,3 +307,41 @@ class LitematicPlugin(Star):
             event, category, filename, animation_type, int(frames), int(duration), float(elevation)
         ):
             yield response
+
+    @filter.command("投影按钮")
+    async def litematic_button(self, event: AstrMessageEvent) -> AsyncGenerator[MessageChain, None]:
+        """
+        开关投影按钮功能
+        使用方法：
+        /投影按钮 - 开关当前按钮状态
+
+        Args:
+            event: 消息事件
+
+        Yields:
+            MessageChain: 响应消息
+        """
+        # 禁止 LLM 请求
+        event.should_call_llm(True)
+
+        # 仅管理员可以使用此命令
+        if not event.is_admin():
+            yield event.plain_result("⛔ 只有管理员才能使用此命令")
+            return
+
+        # 检查按钮插件是否安装
+        button_plugin = None
+        if self.button_utils:
+            button_plugin = self.button_utils.get_button_plugin()
+
+        if button_plugin and button_plugin.star_cls:
+            # 确保button_enabled属性存在
+            if not hasattr(button_plugin.star_cls, "button_enabled"):
+                button_plugin.star_cls.button_enabled = True
+
+            # 按钮插件已安装，切换按钮状态
+            button_enabled = not button_plugin.star_cls.button_enabled
+            button_plugin.star_cls.button_enabled = button_enabled
+            yield event.plain_result(f"投影按钮功能已{'启用' if button_enabled else '禁用'}")
+        else:
+            yield event.plain_result("未找到按钮插件，请确保已安装并启用 astrbot_plugin_buttons 插件")

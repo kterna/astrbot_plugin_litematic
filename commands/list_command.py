@@ -39,17 +39,17 @@ class ListCommand:
                 categories_text: str = "\n".join([f"- {cat}" for cat in categories])
                 log_operation("列出分类", True, {"categories": categories})
 
-                # 检查按钮插件是否安装
-                button_plugin = None
-                if self.button_utils:
-                    button_plugin = self.button_utils.get_button_plugin()
-
-                if button_plugin and button_plugin.star_cls:
-                    # 按钮插件已安装，只显示按钮
+                # 检查按钮插件是否安装且启用
+                if self.button_utils and self.button_utils.is_button_enabled():
+                    # 按钮插件已安装且启用，显示按钮
                     buttons_info = self.button_utils.create_category_list_buttons(categories)
-                    await self.button_utils.send_buttons(event, buttons_info)
+                    button_sent = await self.button_utils.send_buttons(event, buttons_info)
+
+                    # 如果按钮发送失败，显示文字
+                    if not button_sent:
+                        yield event.plain_result(f"可用的分类列表：\n{categories_text}\n\n使用 /投影列表 分类名 查看分类下的文件")
                 else:
-                    # 按钮插件未安装，显示文字
+                    # 按钮插件未安装或未启用，显示文字
                     yield event.plain_result(f"可用的分类列表：\n{categories_text}\n\n使用 /投影列表 分类名 查看分类下的文件")
 
                 return
@@ -72,17 +72,17 @@ class ListCommand:
                 files_text: str = "\n".join([f"- {file}" for file in files])
                 log_operation("列出文件", True, {"category": category, "files_count": len(files)})
 
-                # 检查按钮插件是否安装
-                button_plugin = None
-                if self.button_utils:
-                    button_plugin = self.button_utils.get_button_plugin()
-
-                if button_plugin and button_plugin.star_cls:
-                    # 按钮插件已安装，只显示按钮
+                # 检查按钮插件是否安装且启用
+                if self.button_utils and self.button_utils.is_button_enabled():
+                    # 按钮插件已安装且启用，显示按钮
                     buttons_info = self.button_utils.create_file_list_buttons(category, files)
-                    await self.button_utils.send_buttons(event, buttons_info)
+                    button_sent = await self.button_utils.send_buttons(event, buttons_info)
+
+                    # 如果按钮发送失败，显示文字
+                    if not button_sent:
+                        yield event.plain_result(f"分类 {category} 下的文件：\n{files_text}")
                 else:
-                    # 按钮插件未安装，显示文字
+                    # 按钮插件未安装或未启用，显示文字
                     yield event.plain_result(f"分类 {category} 下的文件：\n{files_text}")
             except FileError as e:
                 log_error(e)

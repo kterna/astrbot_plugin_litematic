@@ -62,19 +62,14 @@ class InfoCommand:
             result_text: str = f"【{os.path.basename(file_path)}】详细信息：\n\n"
             result_text += "\n".join(details)
 
-            # 检查按钮插件是否安装
-            button_plugin = None
-            if self.button_utils:
-                button_plugin = self.button_utils.get_button_plugin()
+            # 无论按钮功能是否开启，都先发送文字内容
+            yield event.plain_result(result_text)
 
-            if button_plugin and button_plugin.star_cls:
-                # 按钮插件已安装，只显示按钮
+            # 如果按钮插件已安装且启用，额外显示按钮
+            if self.button_utils and self.button_utils.is_button_enabled():
                 log_operation("添加文件操作按钮", True, {"category": category, "filename": filename})
                 buttons_info = self.button_utils.create_file_operation_buttons(category, filename)
                 await self.button_utils.send_buttons(event, buttons_info)
-            else:
-                # 按钮插件未安装，显示文字
-                yield event.plain_result(result_text)
 
         except FileNotFoundError as e:
             yield event.plain_result(e.message)

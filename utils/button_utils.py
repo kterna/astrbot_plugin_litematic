@@ -15,6 +15,15 @@ class ButtonUtils:
             log_error(e, extra_info={"operation": "获取按钮插件"})
             return None
 
+    def is_button_enabled(self):
+        """检查按钮功能是否启用"""
+        button_plugin = self.get_button_plugin()
+        if not button_plugin or not button_plugin.star_cls:
+            return False
+
+        # 检查button_enabled属性是否存在并且为True
+        return hasattr(button_plugin.star_cls, "button_enabled") and button_plugin.star_cls.button_enabled
+
     async def send_buttons(self, event: AstrMessageEvent, buttons_info: List[List[Dict[str, str]]]) -> bool:
         """
         发送按钮
@@ -26,6 +35,10 @@ class ButtonUtils:
         Returns:
             bool: 是否成功发送按钮
         """
+        # 检查按钮功能是否启用
+        if not self.is_button_enabled():
+            return False
+
         button_plugin = self.get_button_plugin()
         if not button_plugin or not button_plugin.star_cls:
             return False

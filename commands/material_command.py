@@ -94,19 +94,14 @@ class MaterialCommand:
 
             log_operation("分析材料", True, {"category": category, "filename": filename})
 
-            # 检查按钮插件是否安装
-            button_plugin = None
-            if self.button_utils:
-                button_plugin = self.button_utils.get_button_plugin()
+            # 无论按钮功能是否开启，都先发送文字内容
+            yield event.plain_result(result)
 
-            if button_plugin and button_plugin.star_cls:
-                # 按钮插件已安装，只显示按钮
+            # 如果按钮插件已安装且启用，额外显示按钮
+            if self.button_utils and self.button_utils.is_button_enabled():
                 log_operation("添加材料分析操作按钮", True, {"category": category, "filename": filename})
                 buttons_info = self.button_utils.create_material_buttons(category, filename)
                 await self.button_utils.send_buttons(event, buttons_info)
-            else:
-                # 按钮插件未安装，显示文字
-                yield event.plain_result(result)
 
         except FileNotFoundError as e:
             log_error(e)

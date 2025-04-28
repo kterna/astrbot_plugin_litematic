@@ -105,18 +105,18 @@ class Render3DCommand:
             caption = self._get_animation_caption(animation_type)
             caption_text = f"【{os.path.basename(file_path)}】3D{caption}"
 
-            # 检查按钮插件是否安装
-            button_plugin = None
-            if self.button_utils:
-                button_plugin = self.button_utils.get_button_plugin()
-
-            if button_plugin and button_plugin.star_cls:
-                # 按钮插件已安装，只显示按钮
+            # 检查按钮插件是否安装且启用
+            if self.button_utils and self.button_utils.is_button_enabled():
+                # 按钮插件已安装且启用，显示按钮
                 log_operation("添加3D渲染操作按钮", True, {"category": category, "filename": filename, "animation_type": animation_type})
                 buttons_info = self.button_utils.create_3d_buttons(category, filename)
-                await self.button_utils.send_buttons(event, buttons_info)
+                button_sent = await self.button_utils.send_buttons(event, buttons_info)
+
+                # 如果按钮发送失败，显示文字
+                if not button_sent:
+                    yield event.plain_result(caption_text)
             else:
-                # 按钮插件未安装，显示文字
+                # 按钮插件未安装或未启用，显示文字
                 yield event.plain_result(caption_text)
 
             # 删除临时文件
