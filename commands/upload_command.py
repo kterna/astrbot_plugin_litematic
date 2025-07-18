@@ -126,25 +126,58 @@ class UploadCommand:
         try:
             # 处理文件上传
             for comp in event.message_obj.message:
-                if isinstance(comp, File) and comp.name.endswith('.litematic'):
-                    file_path = comp.file
-                    category = self.upload_states[user_key].get("category", "default")
-                    
+                if isinstance(comp, File):
+                    # 从raw_message中获取真实文件名
+                    filename = None
                     try:
-                        # 使用异步方法保存文件
-                        target_path = await self.file_manager.save_litematic_file_async(file_path, category, comp.name)
-                        log_operation("保存文件", True, {"category": category, "file_name": comp.name, "path": target_path})
-                        yield event.plain_result(f"已成功保存litematic文件到{category}分类: {comp.name}")
-                    except FileSaveError as e:
-                        log_error(e, extra_info={"category": category, "file_name": comp.name})
-                        yield event.plain_result(f"保存litematic文件失败: {e.message}")
+                        raw_message = event.message_obj.raw_message
+                        message_list = getattr(raw_message, 'message', None)
+                        if message_list:
+                            for msg_item in message_list:
+                                if isinstance(msg_item, dict) and msg_item.get('type') == 'file':
+                                    file_data = msg_item.get('data', {})
+                                    file_name = file_data.get('file')
+                                    if file_name and file_name.endswith('.litematic'):
+                                        filename = file_name
+                                        logger.info(f"成功获取文件名: {filename}")
+                                        break
                     except Exception as e:
-                        log_error(e, extra_info={"category": category, "file_name": comp.name, "operation": "保存文件"})
-                        yield event.plain_result(f"保存文件时出现错误: {str(e)}")
+                        logger.warning(f"获取文件名失败: {e}")
                     
-                    # 清理用户状态和取消超时任务
-                    await self._clear_user_state(user_key)
-                    return
+                    # 如果没有获取到文件名，使用默认名称
+                    if not filename:
+                        logger.warning("未找到有效的litematic文件名，使用默认名称")
+                        filename = "uploaded_file.litematic"
+                    
+                    # 检查是否是litematic文件
+                    if filename.endswith('.litematic'):
+                        # 使用get_file()方法下载文件到本地
+                        try:
+                            file_path = await comp.get_file()
+                            logger.info(f"文件已下载到本地: {file_path}")
+                        except Exception as e:
+                            logger.error(f"下载文件失败: {e}")
+                            yield event.plain_result("文件下载失败，上传终止")
+                            await self._clear_user_state(user_key)
+                            return
+                        
+                        category = self.upload_states[user_key].get("category", "default")
+                        
+                        try:
+                            # 保存文件到目标目录
+                            target_path = await self.file_manager.save_litematic_file_async(file_path, category, filename)
+                            log_operation("保存文件", True, {"category": category, "file_name": filename, "path": target_path})
+                            yield event.plain_result(f"已成功保存litematic文件到{category}分类: {filename}")
+                        except FileSaveError as e:
+                            log_error(e, extra_info={"category": category, "file_name": filename})
+                            yield event.plain_result(f"保存litematic文件失败: {e.message}")
+                        except Exception as e:
+                            log_error(e, extra_info={"category": category, "file_name": filename, "operation": "保存文件"})
+                            yield event.plain_result(f"保存文件时出现错误: {str(e)}")
+                        
+                        # 清理用户状态
+                        await self._clear_user_state(user_key)
+                        return
         except Exception as e:
             log_error(e, extra_info={"user_key": user_key, "operation": "处理文件上传"})
             yield event.plain_result(f"处理文件上传时出现错误: {str(e)}")

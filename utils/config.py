@@ -3,6 +3,7 @@ import json
 from typing import Any, Dict, List, Optional, Union
 from astrbot import logger
 from astrbot.api.star import Context
+from astrbot.core.star.star_tools import StarTools
 
 class Config:
     """配置管理类，负责管理插件配置"""
@@ -18,8 +19,9 @@ class Config:
         # 通过文件路径确定插件目录，避免使用context.get_plugin_dir()
         self.plugin_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
-        # 设置litematic文件存储目录
-        self.litematic_dir: str = os.path.join(os.path.dirname(self.plugin_dir), "litematic")
+        # 使用StarTools的get_data_dir方法获取插件数据目录
+        data_dir = StarTools.get_data_dir("litematic")
+        self.litematic_dir: str = str(data_dir)
         
         # 设置分类配置文件路径
         self.categories_file: str = os.path.join(self.litematic_dir, "litematic_categories.json")
@@ -38,7 +40,9 @@ class Config:
         }
         
         # 创建临时目录
-        os.makedirs(self.default_config["temp_dir"], exist_ok=True)
+        temp_dir = self.default_config["temp_dir"]
+        if isinstance(temp_dir, str):
+            os.makedirs(temp_dir, exist_ok=True)
     
     def get_litematic_dir(self) -> str:
         """获取litematic文件存储目录路径
@@ -82,7 +86,10 @@ class Config:
         Returns:
             str: 资源目录路径
         """
-        return self.default_config.get("resource_dir")
+        resource_dir = self.default_config.get("resource_dir")
+        if isinstance(resource_dir, str):
+            return resource_dir
+        return os.path.join(self.plugin_dir, "resource")  # 默认值
     
     def get_models_dir(self) -> str:
         """获取模型目录路径

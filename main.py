@@ -21,7 +21,7 @@ from .commands.info_command import InfoCommand
 from .commands.preview_command import PreviewCommand
 from .commands.render3d_command import Render3DCommand
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.3.0", "https://github.com/kterna/astrbot_plugin_litematic")
+@register("litematic", "kterna", "读取处理Litematic文件", "1.3.1", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context) -> None:
         super().__init__(context)
