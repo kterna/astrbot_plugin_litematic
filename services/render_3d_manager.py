@@ -144,7 +144,7 @@ class Render3DManager:
             gif_exporter = GifExporter()
 
             resize_to = None
-            max_size_bytes = 5 * 1024 * 1024
+            max_size_bytes = self.config.get_config_value("max_gif_size_bytes", 5 * 1024 * 1024)
             if optimize:
                 window_size_for_estimate = window_size
                 if window_size_for_estimate is None:

@@ -1,0 +1,26 @@
+{
+    "max_gif_size_bytes": {
+        "description": "GIF 文件最大大小限制（字节）",
+        "type": "int",
+        "hint": "用于控制生成的 3D 动画 GIF 文件大小。设置为 5242880 (5MB) 适合大多数聊天平台",
+        "default": 5242880
+    },
+    "upload_timeout": {
+        "description": "文件上传超时时间（秒）",
+        "type": "int",
+        "hint": "上传 Litematic 文件时的最大等待时间",
+        "default": 300
+    },
+    "max_workers": {
+        "description": "最大工作线程数",
+        "type": "int",
+        "hint": "用于并发处理文件的线程池大小",
+        "default": 3
+    },
+    "use_block_models": {
+        "description": "是否使用方块模型渲染",
+        "type": "bool",
+        "hint": "开启后使用详细的方块模型进行渲染，关闭则使用简单颜色渲染",
+        "default": true
+    }
+}
