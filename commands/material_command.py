@@ -7,6 +7,7 @@ from astrbot.api.event import AstrMessageEvent, MessageChain
 from litemapy import Schematic
 from ..services.file_manager import FileManager
 from ..services.category_manager import CategoryManager
+from ..services.lang_manager import LangManager
 from ..core.material.material import Material
 from ..utils.types import CategoryType, FilePath, BlockCounts, EntityCounts, MessageResponse, BlockId
 from ..utils.exceptions import (
@@ -18,9 +19,10 @@ from ..utils.exceptions import (
 from ..utils.logging_utils import log_error, log_operation
 
 class MaterialCommand:
-    def __init__(self, file_manager: FileManager, category_manager: CategoryManager) -> None:
+    def __init__(self, file_manager: FileManager, category_manager: CategoryManager, lang_manager: LangManager) -> None:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
+        self.lang_manager: LangManager = lang_manager
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """
@@ -69,7 +71,9 @@ class MaterialCommand:
                 result += "方块材料：\n"
                 sorted_blocks: List[Tuple[BlockId, int]] = sorted(block_counts.items(), key=lambda item: item[1], reverse=True)
                 for block_id, count in sorted_blocks:
-                    result += f"- {block_id[10:]}: {count}个\n"
+                    # 使用翻译功能翻译方块ID
+                    translated_name = self.lang_manager.translate_block(block_id)
+                    result += f"- {translated_name}: {count}个\n"
             else:
                 result += "无方块材料\n"
             
@@ -78,7 +82,9 @@ class MaterialCommand:
                 result += "\n实体：\n"
                 sorted_entities: List[Tuple[str, int]] = sorted(entity_counts.items(), key=lambda item: item[1], reverse=True)
                 for entity_id, count in sorted_entities:
-                    result += f"- {entity_id}: {count}个\n"
+                    # 使用翻译功能翻译实体ID
+                    translated_name = self.lang_manager.translate_entity(entity_id)
+                    result += f"- {translated_name}: {count}个\n"
             
             # 添加方块实体信息
             if tile_counts:
@@ -87,9 +93,13 @@ class MaterialCommand:
                 for tile_id, count in sorted_tiles:
                     # 确保正确显示，处理不同类型的tile_id
                     if isinstance(tile_id, tuple) and len(tile_id) > 0:
-                        result += f"- {tile_id[0]}: {count}个\n"
+                        # 使用翻译功能翻译方块实体ID
+                        translated_name = self.lang_manager.translate_block(tile_id[0])
+                        result += f"- {translated_name}: {count}个\n"
                     else:
-                        result += f"- {tile_id}: {count}个\n"
+                        # 使用翻译功能翻译方块实体ID
+                        translated_name = self.lang_manager.translate_block(tile_id)
+                        result += f"- {translated_name}: {count}个\n"
             
             log_operation("分析材料", True, {"category": category, "filename": filename})
             yield event.plain_result(result)

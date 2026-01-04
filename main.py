@@ -12,6 +12,7 @@ from .services.file_manager import FileManager
 from .services.category_manager import CategoryManager
 from .services.render_manager import RenderManager
 from .services.render_3d_manager import Render3DManager
+from .services.lang_manager import LangManager
 from .utils.config import Config
 from .commands.get_command import GetCommand
 from .commands.delete_command import DeleteCommand
@@ -22,7 +23,7 @@ from .commands.info_command import InfoCommand
 from .commands.preview_command import PreviewCommand
 from .commands.render3d_command import Render3DCommand
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.3.3", "https://github.com/kterna/astrbot_plugin_litematic")
+@register("litematic", "kterna", "读取处理Litematic文件", "1.3.4", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
         super().__init__(context)
@@ -30,24 +31,27 @@ class LitematicPlugin(Star):
         # 初始化配置
         self.config: Config = Config(context, config)
         
+        # 获取插件目录
+        plugin_dir: str = os.path.dirname(os.path.abspath(__file__))
+        
         # 初始化服务
         self.category_manager: CategoryManager = CategoryManager(self.config)
         self.file_manager: FileManager = FileManager(self.config, self.category_manager)
         self.render_manager: RenderManager = RenderManager(self.config)
         self.render_3d_manager: Render3DManager = Render3DManager(self.config)
+        self.lang_manager: LangManager = LangManager(plugin_dir)
         
         # 初始化命令处理器
         self.upload_command: UploadCommand = UploadCommand(self.file_manager, self.category_manager)
         self.list_command: ListCommand = ListCommand(self.category_manager, self.file_manager)
         self.delete_command: DeleteCommand = DeleteCommand(self.category_manager, self.file_manager)
         self.get_command: GetCommand = GetCommand(self.file_manager)
-        self.material_command: MaterialCommand = MaterialCommand(self.file_manager, self.category_manager)
+        self.material_command: MaterialCommand = MaterialCommand(self.file_manager, self.category_manager, self.lang_manager)
         self.info_command: InfoCommand = InfoCommand(self.file_manager, self.category_manager)
         self.preview_command: PreviewCommand = PreviewCommand(self.file_manager, self.render_manager)
         self.render3d_command: Render3DCommand = Render3DCommand(self.file_manager, self.render_3d_manager)
         
         # 保留原有变量以保持兼容性
-        plugin_dir: str = os.path.dirname(os.path.abspath(__file__))
         self.litematic_dir: str = self.config.get_litematic_dir()
         self.categories_file: str = self.config.get_categories_file()
         os.makedirs(self.litematic_dir, exist_ok=True)
