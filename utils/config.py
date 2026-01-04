@@ -4,17 +4,20 @@ from typing import Any, Dict, List, Optional, Union
 from astrbot import logger
 from astrbot.api.star import Context
 from astrbot.core.star.star_tools import StarTools
+from astrbot.core import AstrBotConfig
 
 class Config:
     """配置管理类，负责管理插件配置"""
     
-    def __init__(self, context: Optional[Context] = None) -> None:
+    def __init__(self, context: Optional[Context] = None, astrbot_config: Optional[AstrBotConfig] = None) -> None:
         """初始化配置管理器
-        
+
         Args:
             context: AstrBot上下文对象
+            astrbot_config: AstrBot配置对象
         """
         self.context: Optional[Context] = context
+        self.astrbot_config: Optional[AstrBotConfig] = astrbot_config
         
         # 通过文件路径确定插件目录，避免使用context.get_plugin_dir()
         self.plugin_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,16 +31,29 @@ class Config:
         
         # 创建必要的目录
         os.makedirs(self.litematic_dir, exist_ok=True)
-        
-        # 默认配置
-        self.default_config: Dict[str, Union[List[str], int, str, bool]] = {
-            "default_categories": ["建筑", "红石"],
-            "upload_timeout": 300,  # 秒
-            "temp_dir": os.path.join(self.plugin_dir, "temp"),
-            "max_workers": 3,
-            "resource_dir": os.path.join(self.plugin_dir, "resource"),
-            "use_block_models": True  # 默认启用方块模型
-        }
+
+        # 从 astrbot_config 加载配置（如果可用），否则使用默认值
+        if self.astrbot_config:
+            self.default_config: Dict[str, Union[List[str], int, str, bool]] = {
+                "default_categories": ["建筑", "红石"],
+                "upload_timeout": self.astrbot_config.get("upload_timeout", 300),
+                "temp_dir": os.path.join(self.plugin_dir, "temp"),
+                "max_workers": self.astrbot_config.get("max_workers", 3),
+                "resource_dir": os.path.join(self.plugin_dir, "resource"),
+                "use_block_models": self.astrbot_config.get("use_block_models", True),
+                "max_gif_size_bytes": self.astrbot_config.get("max_gif_size_bytes", 5 * 1024 * 1024)
+            }
+        else:
+            # 默认配置（向后兼容）
+            self.default_config: Dict[str, Union[List[str], int, str, bool]] = {
+                "default_categories": ["建筑", "红石"],
+                "upload_timeout": 300,  # 秒
+                "temp_dir": os.path.join(self.plugin_dir, "temp"),
+                "max_workers": 3,
+                "resource_dir": os.path.join(self.plugin_dir, "resource"),
+                "use_block_models": True,  # 默认启用方块模型
+                "max_gif_size_bytes": 5 * 1024 * 1024  # 最大GIF文件大小（字节），默认5MB
+            }
         
         # 创建临时目录
         temp_dir = self.default_config["temp_dir"]

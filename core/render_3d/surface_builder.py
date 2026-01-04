@@ -44,8 +44,11 @@ class SurfaceBuilder:
         self.texture_sampler = TextureSampler(resource_dir, native_textures=native_textures)
         self.model_resolver = ModelResolver(resource_dir)
 
+        self._cube_face_cache: Dict[Tuple[str, str], Tuple[Any, ...]] = {}
+
     def build_surfaces(self) -> List[Dict[str, Any]]:
         surfaces: List[Dict[str, Any]] = []
+        cube_blocks: Dict[Tuple[int, int, int], str] = {}
 
         for position, block_data in self.blocks.items():
             block_id = block_data.get("id", "")
@@ -65,7 +68,10 @@ class SurfaceBuilder:
                     )
                 continue
 
-            surfaces.extend(self._build_cube_surfaces(position, block_id))
+            cube_blocks[position] = block_id
+
+        if cube_blocks:
+            surfaces.extend(self._build_greedy_cube_surfaces(cube_blocks))
 
         return surfaces
 
@@ -295,6 +301,182 @@ class SurfaceBuilder:
                 })
 
         return surfaces
+
+    def _build_greedy_cube_surfaces(self,
+                                   cube_blocks: Dict[Tuple[int, int, int], str]) -> List[Dict[str, Any]]:
+        surfaces: List[Dict[str, Any]] = []
+        if not cube_blocks:
+            return surfaces
+
+        self._cube_face_cache.clear()
+
+        for face_name in ("top", "bottom", "north", "south", "east", "west"):
+            surfaces.extend(self._merge_face_planes(face_name, cube_blocks))
+
+        return surfaces
+
+    def _merge_face_planes(self, face_name: str,
+                           cube_blocks: Dict[Tuple[int, int, int], str]) -> List[Dict[str, Any]]:
+        dx, dy, dz = self.CUBE_FACE_DIRS[face_name]
+        planes: Dict[int, Dict[Tuple[int, int], Tuple[Tuple[Any, ...], str]]] = {}
+
+        for (x, y, z), block_id in cube_blocks.items():
+            neighbor = (x + dx, y + dy, z + dz)
+            if neighbor in self.blocks:
+                continue
+
+            key = self._get_cube_face_key(block_id, face_name)
+            if not key:
+                continue
+
+            if face_name in ("top", "bottom"):
+                plane = y
+                cell = (x, z)
+            elif face_name in ("north", "south"):
+                plane = z
+                cell = (x, y)
+            else:
+                plane = x
+                cell = (z, y)
+
+            planes.setdefault(plane, {})[cell] = (key, block_id)
+
+        surfaces: List[Dict[str, Any]] = []
+        for plane, cells in planes.items():
+            surfaces.extend(self._greedy_merge_plane(face_name, plane, cells))
+
+        return surfaces
+
+    def _get_cube_face_key(self, block_id: str, face_name: str) -> Tuple[Any, ...]:
+        cache_key = (block_id, face_name)
+        if cache_key in self._cube_face_cache:
+            return self._cube_face_cache[cache_key]
+
+        block_name = block_id.split(":")[-1]
+        texture_face = self._map_cube_face(face_name)
+        texture_name = self.texture_sampler.resolve_block_texture_name(block_name, texture_face)
+        if texture_name:
+            key = ("tex", texture_name)
+        else:
+            color = self.texture_sampler.sample_block_face_color(block_name, texture_face)
+            color = self._apply_shading(color, face_name)
+            key = ("color", color)
+
+        self._cube_face_cache[cache_key] = key
+        return key
+
+    def _greedy_merge_plane(self, face_name: str, plane: int,
+                            cells: Dict[Tuple[int, int], Tuple[Tuple[Any, ...], str]]) -> List[Dict[str, Any]]:
+        u_values = [coord[0] for coord in cells.keys()]
+        v_values = [coord[1] for coord in cells.keys()]
+        u_min, u_max = min(u_values), max(u_values)
+        v_min, v_max = min(v_values), max(v_values)
+
+        rows = v_max - v_min + 1
+        cols = u_max - u_min + 1
+        mask: List[List[Any]] = [[None for _ in range(cols)] for _ in range(rows)]
+
+        for (u, v), cell in cells.items():
+            mask[v - v_min][u - u_min] = cell
+
+        visited = [[False for _ in range(cols)] for _ in range(rows)]
+        surfaces: List[Dict[str, Any]] = []
+
+        for row in range(rows):
+            for col in range(cols):
+                cell = mask[row][col]
+                if cell is None or visited[row][col]:
+                    continue
+
+                key, block_id = cell
+                width = 1
+                while col + width < cols:
+                    other = mask[row][col + width]
+                    if (other is None or visited[row][col + width]
+                            or other[0] != key):
+                        break
+                    width += 1
+
+                height = 1
+                while row + height < rows:
+                    can_expand = True
+                    for offset in range(width):
+                        other = mask[row + height][col + offset]
+                        if (other is None or visited[row + height][col + offset]
+                                or other[0] != key):
+                            can_expand = False
+                            break
+                    if not can_expand:
+                        break
+                    height += 1
+
+                for r in range(row, row + height):
+                    for c in range(col, col + width):
+                        visited[r][c] = True
+
+                u0 = u_min + col
+                v0 = v_min + row
+
+                if face_name in ("top", "bottom"):
+                    origin = (u0, plane, v0)
+                    size_x = width
+                    size_y = 1
+                    size_z = height
+                    uv_face = "up" if face_name == "top" else "down"
+                    uv_rect = [0, 0, 16 * size_x, 16 * size_z]
+                elif face_name in ("north", "south"):
+                    origin = (u0, v0, plane)
+                    size_x = width
+                    size_y = height
+                    size_z = 1
+                    uv_face = face_name
+                    uv_rect = [0, 0, 16 * size_x, 16 * size_y]
+                else:
+                    origin = (plane, v0, u0)
+                    size_x = 1
+                    size_y = height
+                    size_z = width
+                    uv_face = face_name
+                    uv_rect = [0, 0, 16 * size_z, 16 * size_y]
+
+                vertices, uvs = self._build_merged_surface(
+                    uv_face, origin, size_x, size_y, size_z, uv_rect
+                )
+
+                if key[0] == "tex":
+                    surfaces.append({
+                        "vertices": vertices,
+                        "uvs": uvs,
+                        "texture": key[1],
+                        "tint": None,
+                        "face": face_name,
+                        "block_id": block_id,
+                    })
+                else:
+                    surfaces.append({
+                        "vertices": vertices,
+                        "color": key[1],
+                        "face": face_name,
+                        "block_id": block_id,
+                    })
+
+        return surfaces
+
+    def _build_merged_surface(self, uv_face: str, origin: Tuple[int, int, int],
+                              size_x: int, size_y: int, size_z: int,
+                              uv_rect: List[float]) -> Tuple[List[Tuple[float, float, float]],
+                                                          List[Tuple[float, float]]]:
+        from_coords = [0.0, 0.0, 0.0]
+        to_coords = [float(size_x), float(size_y), float(size_z)]
+        local_vertices = self._get_face_vertices(uv_face, from_coords, to_coords)
+        uvs = self._normalize_uvs(
+            self._get_vertex_uvs(uv_face, local_vertices, from_coords, to_coords, uv_rect)
+        )
+        vertices = [
+            (vertex[0] + origin[0], vertex[1] + origin[1], vertex[2] + origin[2])
+            for vertex in local_vertices
+        ]
+        return vertices, uvs
 
     def _has_neighbor(self, position: Tuple[int, int, int], face_name: str) -> bool:
         direction = self.FACE_DIRS.get(face_name)
