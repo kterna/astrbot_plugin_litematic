@@ -138,58 +138,103 @@ class Render3DManager:
             # 7. 生成动画
             logger.info(f"生成{animation_type}动画...")
             animation_generator = AnimationGenerator(renderer)
-            
-            # 根据动画类型选择不同的生成方法
-            success = False
+
+            # 8. 导出GIF（流式写入，降低内存占用）
+            logger.info("导出GIF...")
+            gif_exporter = GifExporter()
+
+            resize_to = None
+            max_size_bytes = 5 * 1024 * 1024
+            if optimize:
+                window_size_for_estimate = window_size
+                if window_size_for_estimate is None:
+                    window_size_for_estimate = renderer.config.get("window_size", [800, 600])
+                if window_size_for_estimate:
+                    resize_to = gif_exporter.estimate_scaled_size(
+                        int(window_size_for_estimate[0]),
+                        int(window_size_for_estimate[1]),
+                        frames,
+                        max_size_bytes
+                    )
+
+            frame_iter = None
             if animation_type == "rotation":
-                success = animation_generator.generate_rotation_frames(
-                    n_frames=frames, 
+                frame_iter = animation_generator.iter_rotation_frames(
+                    n_frames=frames,
                     elevation=elevation,
                     window_size=window_size
                 )
             elif animation_type == "orbit":
-                success = animation_generator.generate_orbit_frames(
+                frame_iter = animation_generator.iter_orbit_frames(
                     n_frames=frames,
                     start_elevation=0,
                     end_elevation=90,
                     window_size=window_size
                 )
             elif animation_type == "zoom":
-                success = animation_generator.generate_zoom_frames(
+                frame_iter = animation_generator.iter_zoom_frames(
                     n_frames=frames,
                     window_size=window_size
                 )
             else:
-                # 默认为旋转动画
-                success = animation_generator.generate_rotation_frames(
-                    n_frames=frames, 
+                frame_iter = animation_generator.iter_rotation_frames(
+                    n_frames=frames,
                     elevation=elevation,
                     window_size=window_size
                 )
-            
-            if not success:
-                raise RenderError(f"生成{animation_type}动画失败", code=2003)
-                
-            frames_list = animation_generator.get_frames()
-            logger.info(f"动画生成完成，共 {len(frames_list)} 帧")
-            
-            # 8. 导出GIF
-            logger.info("导出GIF...")
-            gif_exporter = GifExporter()
-            
-            # 如果需要优化大小
-            if optimize:
-                # 限制GIF大小为5MB
-                frames_list = gif_exporter.optimize_gif_size(frames_list, 5 * 1024 * 1024)
-            
-            # 创建临时文件
-            temp_gif_path = gif_exporter.export_gif_with_temp(frames_list, duration=duration)
-            
+
+            temp_gif_path = gif_exporter.export_gif_with_temp_stream(
+                frame_iter,
+                duration=duration,
+                resize_to=resize_to
+            )
+
+            if temp_gif_path:
+                logger.info(f"动画生成完成，共 {frames} 帧")
+            else:
+                # 流式导出失败时回退到内存模式
+                success = False
+                if animation_type == "rotation":
+                    success = animation_generator.generate_rotation_frames(
+                        n_frames=frames,
+                        elevation=elevation,
+                        window_size=window_size
+                    )
+                elif animation_type == "orbit":
+                    success = animation_generator.generate_orbit_frames(
+                        n_frames=frames,
+                        start_elevation=0,
+                        end_elevation=90,
+                        window_size=window_size
+                    )
+                elif animation_type == "zoom":
+                    success = animation_generator.generate_zoom_frames(
+                        n_frames=frames,
+                        window_size=window_size
+                    )
+                else:
+                    success = animation_generator.generate_rotation_frames(
+                        n_frames=frames,
+                        elevation=elevation,
+                        window_size=window_size
+                    )
+
+                if not success:
+                    raise RenderError(f"生成{animation_type}动画失败", code=2003)
+
+                frames_list = animation_generator.get_frames()
+                logger.info(f"动画生成完成，共 {len(frames_list)} 帧")
+
+                if optimize:
+                    frames_list = gif_exporter.optimize_gif_size(frames_list, max_size_bytes)
+
+                temp_gif_path = gif_exporter.export_gif_with_temp(frames_list, duration=duration)
+
             if not temp_gif_path:
                 raise RenderError("导出GIF失败", code=2004)
-                
+
             logger.info(f"GIF导出完成: {temp_gif_path}")
-            
+
             return temp_gif_path
             
         except RenderError:

@@ -1,7 +1,7 @@
 import os
 import math
 import numpy as np
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Dict, List, Tuple, Any, Optional, Iterable
 from PIL import Image
 
 class AnimationGenerator:
@@ -19,6 +19,127 @@ class AnimationGenerator:
         self.renderer = renderer
         self.frames: List[Image.Image] = []
     
+    def iter_rotation_frames(self, n_frames: int = 36, elevation: float = 30.0,
+                             distance_factor: float = 2.0,
+                             window_size: Optional[Tuple[int, int]] = None) -> Iterable[Image.Image]:
+        """
+        流式生成围绕模型旋转的帧序列
+        """
+        try:
+            bounds = self.renderer.model_data["bounds"]
+            center_x = (bounds["min_x"] + bounds["max_x"]) / 2
+            center_y = (bounds["min_y"] + bounds["max_y"]) / 2
+            center_z = (bounds["min_z"] + bounds["max_z"]) / 2
+
+            size_x = bounds["max_x"] - bounds["min_x"] + 1
+            size_y = bounds["max_y"] - bounds["min_y"] + 1
+            size_z = bounds["max_z"] - bounds["min_z"] + 1
+            max_size = max(size_x, size_y, size_z)
+
+            distance = max_size * distance_factor
+            angle_increment = 360.0 / n_frames
+
+            for i in range(n_frames):
+                angle = i * angle_increment
+                angle_rad = math.radians(angle)
+                cam_x = center_x + distance * math.cos(angle_rad)
+                cam_y = center_y + distance * math.sin(math.radians(elevation))
+                cam_z = center_z + distance * math.sin(angle_rad)
+
+                frame = self.renderer.render_scene(
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size,
+                    reuse_plotter=True
+                )
+                if frame is None:
+                    raise RuntimeError(f"帧 {i+1} 渲染失败")
+                yield frame
+        finally:
+            if hasattr(self.renderer, "close"):
+                self.renderer.close()
+
+    def iter_orbit_frames(self, n_frames: int = 36, start_elevation: float = 0.0,
+                          end_elevation: float = 90.0, distance_factor: float = 2.0,
+                          window_size: Optional[Tuple[int, int]] = None) -> Iterable[Image.Image]:
+        """
+        流式生成轨道动画帧
+        """
+        try:
+            bounds = self.renderer.model_data["bounds"]
+            center_x = (bounds["min_x"] + bounds["max_x"]) / 2
+            center_y = (bounds["min_y"] + bounds["max_y"]) / 2
+            center_z = (bounds["min_z"] + bounds["max_z"]) / 2
+
+            size_x = bounds["max_x"] - bounds["min_x"] + 1
+            size_y = bounds["max_y"] - bounds["min_y"] + 1
+            size_z = bounds["max_z"] - bounds["min_z"] + 1
+            max_size = max(size_x, size_y, size_z)
+
+            distance = max_size * distance_factor
+            angle_increment = 360.0 / n_frames
+            elevation_increment = (end_elevation - start_elevation) / n_frames
+
+            for i in range(n_frames):
+                angle = i * angle_increment
+                elevation = start_elevation + i * elevation_increment
+                angle_rad = math.radians(angle)
+                elevation_rad = math.radians(elevation)
+                cam_x = center_x + distance * math.cos(angle_rad) * math.cos(elevation_rad)
+                cam_y = center_y + distance * math.sin(elevation_rad)
+                cam_z = center_z + distance * math.sin(angle_rad) * math.cos(elevation_rad)
+
+                frame = self.renderer.render_scene(
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size,
+                    reuse_plotter=True
+                )
+                if frame is None:
+                    raise RuntimeError(f"帧 {i+1} 渲染失败")
+                yield frame
+        finally:
+            if hasattr(self.renderer, "close"):
+                self.renderer.close()
+
+    def iter_zoom_frames(self, n_frames: int = 24, start_factor: float = 3.0,
+                         end_factor: float = 1.5,
+                         window_size: Optional[Tuple[int, int]] = None) -> Iterable[Image.Image]:
+        """
+        流式生成缩放动画帧
+        """
+        try:
+            bounds = self.renderer.model_data["bounds"]
+            center_x = (bounds["min_x"] + bounds["max_x"]) / 2
+            center_y = (bounds["min_y"] + bounds["max_y"]) / 2
+            center_z = (bounds["min_z"] + bounds["max_z"]) / 2
+
+            size_x = bounds["max_x"] - bounds["min_x"] + 1
+            size_y = bounds["max_y"] - bounds["min_y"] + 1
+            size_z = bounds["max_z"] - bounds["min_z"] + 1
+            max_size = max(size_x, size_y, size_z)
+
+            factor_increment = (end_factor - start_factor) / n_frames
+            angle_rad = math.radians(45)
+            elevation_rad = math.radians(30)
+
+            for i in range(n_frames):
+                factor = start_factor + i * factor_increment
+                distance = max_size * factor
+                cam_x = center_x + distance * math.cos(angle_rad) * math.cos(elevation_rad)
+                cam_y = center_y + distance * math.sin(elevation_rad)
+                cam_z = center_z + distance * math.sin(angle_rad) * math.cos(elevation_rad)
+
+                frame = self.renderer.render_scene(
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size,
+                    reuse_plotter=True
+                )
+                if frame is None:
+                    raise RuntimeError(f"帧 {i+1} 渲染失败")
+                yield frame
+        finally:
+            if hasattr(self.renderer, "close"):
+                self.renderer.close()
+
     def generate_rotation_frames(self, n_frames: int = 36, elevation: float = 30.0,
                                distance_factor: float = 2.0,
                                window_size: Optional[Tuple[int, int]] = None) -> bool:
