@@ -26,6 +26,8 @@ class PyVistaRenderer:
         self.surface_data = surface_data
         self.color_mapper = color_mapper
         self.plotter = None
+        self._plotter_window_size = None
+        self._plotter_background = None
         self.mesh = None
         self.textured_meshes: List[Tuple[pv.PolyData, pv.Texture]] = []
         self.texture_sampler = (
@@ -84,15 +86,17 @@ class PyVistaRenderer:
     
     def render_scene(self, camera_position: Optional[Tuple[float, float, float]] = None,
                     background_color: Optional[Tuple[float, float, float]] = None,
-                    window_size: Optional[List[int]] = None) -> Optional[Image.Image]:
+                    window_size: Optional[List[int]] = None,
+                    reuse_plotter: bool = False) -> Optional[Image.Image]:
         """
         渲染3D场景并返回图像
-        
+
         Args:
             camera_position: 相机位置，如果为None则使用配置值
             background_color: 背景颜色，如果为None则使用配置值
             window_size: 窗口大小，如果为None则使用配置值
-            
+            reuse_plotter: 是否复用渲染管线
+
         Returns:
             Optional[Image.Image]: 渲染的图像，如果失败则返回None
         """
@@ -100,7 +104,7 @@ class PyVistaRenderer:
             if self.mesh is None and not self.textured_meshes:
                 if not self.create_mesh():
                     return None
-            
+
             # 更新配置
             if camera_position is not None:
                 self.config['camera_position'] = camera_position
@@ -108,35 +112,17 @@ class PyVistaRenderer:
                 self.config['background_color'] = background_color
             if window_size is not None:
                 self.config['window_size'] = window_size
-            
-            # 创建Plotter对象（用于离屏渲染）
-            plotter = pv.Plotter(off_screen=True, window_size=self.config['window_size'])
-            
-            # 设置背景
-            plotter.set_background(self.config['background_color'])
-            
-            # 添加网格到场景
-            for mesh, texture in self.textured_meshes:
-                plotter.add_mesh(
-                    mesh,
-                    texture=texture,
-                    show_edges=False,
-                    smooth_shading=self.config['smooth_shading'],
-                    render_points_as_spheres=self.config['render_points_as_spheres'],
-                    lighting=self.config['lighting']
-                )
 
-            if self.mesh is not None:
-                plotter.add_mesh(
-                    self.mesh,
-                    scalars='colors',
-                    rgb=True,
-                    show_edges=False,
-                    smooth_shading=self.config['smooth_shading'],
-                    render_points_as_spheres=self.config['render_points_as_spheres'],
-                    lighting=self.config['lighting']
+            if reuse_plotter:
+                plotter = self._get_or_create_plotter(
+                    self.config['window_size'],
+                    self.config['background_color']
                 )
-            
+            else:
+                plotter = pv.Plotter(off_screen=True, window_size=self.config['window_size'])
+                plotter.set_background(self.config['background_color'])
+                self._add_meshes(plotter)
+
             # 设置相机位置
             if self.config['camera_position'] == 'iso':
                 # 根据模型尺寸计算合适的相机位置
@@ -144,13 +130,13 @@ class PyVistaRenderer:
                 center_x = (bounds['min_x'] + bounds['max_x']) / 2
                 center_y = (bounds['min_y'] + bounds['max_y']) / 2
                 center_z = (bounds['min_z'] + bounds['max_z']) / 2
-                
+
                 # 计算模型尺寸的最大值
                 size_x = bounds['max_x'] - bounds['min_x'] + 1
                 size_y = bounds['max_y'] - bounds['min_y'] + 1
                 size_z = bounds['max_z'] - bounds['min_z'] + 1
                 max_size = max(size_x, size_y, size_z)
-                
+
                 # 设置相机位置为中心点的等距视角，距离为模型尺寸的2倍
                 distance = max_size * 2
                 camera_pos = (
@@ -158,7 +144,7 @@ class PyVistaRenderer:
                     center_y + distance,
                     center_z + distance
                 )
-                
+
                 plotter.camera_position = [
                     camera_pos,
                     (center_x, center_y, center_z),
@@ -166,24 +152,93 @@ class PyVistaRenderer:
                 ]
             else:
                 plotter.camera_position = self.config['camera_position']
-            
-            # 设置视图选项
-            if self.config['show_axes']:
-                plotter.add_axes()
-            
+
             # 渲染场景
+            if reuse_plotter:
+                plotter.render()
             img = plotter.screenshot(return_img=True)
-            plotter.close()
-            
+            if not reuse_plotter:
+                plotter.close()
+
             # 转换为PIL图像
+            img = np.array(img, copy=True)
             pil_img = Image.fromarray(img)
-            
+
             return pil_img
-            
+
         except Exception as e:
             print(f"渲染场景时出错: {e}")
             return None
-    
+
+    def _add_meshes(self, plotter: pv.Plotter) -> None:
+        for mesh, texture in self.textured_meshes:
+            plotter.add_mesh(
+                mesh,
+                texture=texture,
+                show_edges=False,
+                smooth_shading=self.config['smooth_shading'],
+                render_points_as_spheres=self.config['render_points_as_spheres'],
+                lighting=self.config['lighting'],
+            )
+
+        if self.mesh is not None:
+            plotter.add_mesh(
+                self.mesh,
+                scalars='colors',
+                rgb=True,
+                show_edges=False,
+                smooth_shading=self.config['smooth_shading'],
+                render_points_as_spheres=self.config['render_points_as_spheres'],
+                lighting=self.config['lighting'],
+            )
+
+        if self.config['show_axes']:
+            plotter.add_axes()
+
+    def _get_or_create_plotter(self, window_size: List[int],
+                               background_color: Tuple[float, float, float]) -> pv.Plotter:
+        window_size_key = tuple(window_size)
+        background_key = tuple(background_color)
+        if self.plotter is not None:
+            if (self._plotter_window_size == window_size_key
+                    and self._plotter_background == background_key):
+                return self.plotter
+            try:
+                self.plotter.close()
+            except Exception:
+                pass
+
+        self.plotter = pv.Plotter(off_screen=True, window_size=list(window_size))
+        self.plotter.set_background(background_color)
+        self._add_meshes(self.plotter)
+        self._plotter_window_size = window_size_key
+        self._plotter_background = background_key
+        return self.plotter
+
+    def _enable_texture_repeat(self, texture: pv.Texture) -> None:
+        try:
+            if hasattr(texture, "repeat"):
+                texture.repeat = True
+                return
+            if hasattr(texture, "SetRepeat"):
+                texture.SetRepeat(True)
+                return
+            if hasattr(texture, "RepeatOn"):
+                texture.RepeatOn()
+        except Exception:
+            return
+
+    def close(self) -> None:
+        if self.plotter is None:
+            return
+        try:
+            self.plotter.close()
+        except Exception:
+            pass
+        self.plotter = None
+        self._plotter_window_size = None
+        self._plotter_background = None
+
     def set_config(self, config: Dict[str, Any]) -> None:
         """
         更新渲染配置
@@ -314,6 +369,8 @@ class PyVistaRenderer:
             texture_image = self.texture_sampler.get_texture_image(texture_name, tint)
             texture_image = texture_image.transpose(Image.FLIP_TOP_BOTTOM)
             texture = pv.Texture(np.array(texture_image))
+
+            self._enable_texture_repeat(texture)
 
             textured_meshes.append((mesh, texture))
 
