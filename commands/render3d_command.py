@@ -1,7 +1,8 @@
 import os
+import re
 import traceback
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from astrbot import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
@@ -32,7 +33,7 @@ class Render3DCommand:
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", 
                      animation_type: str = "rotation", frames: int = 36, duration: int = 100,
-                     elevation: float = 30.0) -> MessageResponse:
+                     elevation: float = 30.0, resolution: str = "native") -> MessageResponse:
         """
         渲染litematic文件的3D动画
         
@@ -44,6 +45,7 @@ class Render3DCommand:
             frames: 帧数
             duration: 每帧持续时间(毫秒)
             elevation: 相机仰角(度)
+            resolution: 分辨率(native/default 或 WxH)
             
         Yields:
             MessageChain: 响应消息
@@ -72,6 +74,13 @@ class Render3DCommand:
         if elevation < 0 or elevation > 90:
             yield event.plain_result("相机仰角必须在0到90度之间")
             return
+
+        # 验证分辨率
+        try:
+            window_size, native_textures, native_max_size = self._parse_resolution(resolution)
+        except ValueError as e:
+            yield event.plain_result(str(e))
+            return
         
         try:
             # 发送处理提示
@@ -87,7 +96,10 @@ class Render3DCommand:
                 frames=frames,
                 duration=duration,
                 elevation=elevation,
-                optimize=True
+                optimize=True,
+                window_size=window_size,
+                native_textures=native_textures,
+                native_max_size=native_max_size
             )
             
             # 准备消息链
@@ -146,7 +158,7 @@ class Render3DCommand:
         """
         return (
             "3D渲染命令使用方法：\n"
-            "/投影3D 分类 文件名 [动画类型] [帧数] [持续时间] [仰角]\n\n"
+            "/投影3D 分类 文件名 [动画类型] [帧数] [持续时间] [仰角] [分辨率]\n\n"
             "支持的动画类型：\n"
             "- rotation: 旋转动画(默认)\n"
             "- orbit: 环绕动画\n"
@@ -154,6 +166,50 @@ class Render3DCommand:
             "可选参数：\n"
             "- 帧数: 1-120之间的整数，默认36\n"
             "- 持续时间: 每帧的持续时间(毫秒)，50-500之间，默认100\n"
-            "- 仰角: 相机仰角(度)，0-90之间，默认30\n\n"
-            "例如：/投影3D 建筑 房子 rotation 36 100 30"
-        ) 
+            "- 仰角: 相机仰角(度)，0-90之间，默认30\n"
+            "- 分辨率: native(按贴图原生分辨率自动计算，可用 native@12000 提高上限)\n"
+            "          default(固定800x600) / WxH，例如 1024x768\n\n"
+            "例如：/投影3D 建筑 房子 rotation 36 100 30 native\n"
+            "或：/投影3D 建筑 房子 rotation 36 100 30 1024x768"
+        )
+
+    def _parse_resolution(self, resolution: str) -> Tuple[Optional[Tuple[int, int]], bool, Optional[Tuple[int, int]]]:
+        min_size = 64
+        max_size = 32768
+
+        if resolution is None:
+            return None, True, None
+
+        value = str(resolution).strip().lower()
+        if not value:
+            return None, True, None
+
+        native_match = re.match(
+            r"^(native|原生|原生分辨率|auto|自动)(?:[@:](\d+)(?:\s*[xX×\*_,]\s*(\d+))?)?$",
+            value
+        )
+        if native_match:
+            if native_match.group(2):
+                max_width = int(native_match.group(2))
+                max_height = int(native_match.group(3)) if native_match.group(3) else max_width
+                if (max_width < min_size or max_height < min_size
+                        or max_width > max_size or max_height > max_size):
+                    raise ValueError(
+                        f"原生分辨率上限必须在 {min_size}x{min_size} 到 {max_size}x{max_size} 之间"
+                    )
+                return None, True, (max_width, max_height)
+            return None, True, None
+
+        if value in {"default", "默认"}:
+            return None, False, None
+
+        match = re.match(r"^(\d+)\s*[xX×\*_,]\s*(\d+)$", value)
+        if not match:
+            raise ValueError("分辨率格式错误，请使用 native、default、native@上限 或 WxH，例如 1024x768/1024×768")
+
+        width = int(match.group(1))
+        height = int(match.group(2))
+        if width < min_size or height < min_size or width > max_size or height > max_size:
+            raise ValueError(f"分辨率必须在 {min_size}x{min_size} 到 {max_size}x{max_size} 之间")
+
+        return (width, height), False, None

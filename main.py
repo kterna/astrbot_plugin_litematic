@@ -21,7 +21,7 @@ from .commands.info_command import InfoCommand
 from .commands.preview_command import PreviewCommand
 from .commands.render3d_command import Render3DCommand
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.3.1", "https://github.com/kterna/astrbot_plugin_litematic")
+@register("litematic", "kterna", "读取处理Litematic文件", "1.3.2", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context) -> None:
         super().__init__(context)
@@ -78,7 +78,7 @@ class LitematicPlugin(Star):
         /投影材料 分类名 文件名 - 分析指定分类下文件所需的材料
         /投影信息 分类名 文件名 - 分析指定分类下文件的详细信息
         /投影预览 分类名 文件名 - 生成并显示litematic的2D预览图
-        /投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
+        /投影3D 分类名 文件名 [动画类型] [帧数] [持续时间] [仰角] [分辨率] - 生成并显示litematic的3D渲染动画
         
         Args:
             event: 消息事件
@@ -226,12 +226,13 @@ class LitematicPlugin(Star):
     @filter.command("投影3D", alias=["litematic_3d"])
     async def litematic_3d(self, event: AstrMessageEvent, category: str = "", filename: str = "", 
                          animation_type: str = "rotation", frames: int = 36, 
-                         duration: int = 100, elevation: float = 30.0) -> AsyncGenerator[MessageChain, None]:
+                         duration: int = 100, elevation: float = 30.0,
+                         resolution: str = "native") -> AsyncGenerator[MessageChain, None]:
         """
         生成litematic文件的3D渲染动画
         使用方法：
         /投影3D 分类名 文件名 - 生成并显示litematic的3D渲染动画
-        /投影3D 分类名 文件名 动画类型 帧数 持续时间 仰角 - 自定义参数生成3D渲染动画
+        /投影3D 分类名 文件名 动画类型 帧数 持续时间 仰角 分辨率 - 自定义参数生成3D渲染动画
         
         Args:
             event: 消息事件
@@ -241,12 +242,13 @@ class LitematicPlugin(Star):
             frames: 帧数，默认为36
             duration: 每帧持续时间(毫秒)，默认为100
             elevation: 相机仰角(度)，默认为30.0
+            resolution: 分辨率(native/default 或 WxH，支持 native@上限)，默认为native
             
         Yields:
             MessageChain: 响应消息
         """
         # 使用Render3DCommand处理投影3D命令
         async for response in self.render3d_command.execute(
-            event, category, filename, animation_type, int(frames), int(duration), float(elevation)
+            event, category, filename, animation_type, int(frames), int(duration), float(elevation), resolution
         ):
             yield response

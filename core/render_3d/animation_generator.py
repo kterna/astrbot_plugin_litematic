@@ -20,7 +20,8 @@ class AnimationGenerator:
         self.frames: List[Image.Image] = []
     
     def generate_rotation_frames(self, n_frames: int = 36, elevation: float = 30.0,
-                               distance_factor: float = 2.0) -> bool:
+                               distance_factor: float = 2.0,
+                               window_size: Optional[Tuple[int, int]] = None) -> bool:
         """
         生成围绕模型旋转的帧序列
         
@@ -28,6 +29,7 @@ class AnimationGenerator:
             n_frames: 帧数，默认为36（每10度一帧）
             elevation: 相机仰角，默认为30度
             distance_factor: 相机距离因子，默认为2.0
+            window_size: 输出分辨率(width, height)
             
         Returns:
             bool: 是否成功生成帧
@@ -69,7 +71,8 @@ class AnimationGenerator:
                 
                 # 渲染场景
                 frame = self.renderer.render_scene(
-                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)]
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size
                 )
                 
                 if frame is None:
@@ -86,7 +89,8 @@ class AnimationGenerator:
             return False
     
     def generate_orbit_frames(self, n_frames: int = 36, start_elevation: float = 0.0,
-                           end_elevation: float = 90.0, distance_factor: float = 2.0) -> bool:
+                           end_elevation: float = 90.0, distance_factor: float = 2.0,
+                           window_size: Optional[Tuple[int, int]] = None) -> bool:
         """
         生成轨道动画帧，相机从低到高环绕模型
         
@@ -95,6 +99,7 @@ class AnimationGenerator:
             start_elevation: 起始仰角（度）
             end_elevation: 结束仰角（度）
             distance_factor: 相机距离因子
+            window_size: 输出分辨率(width, height)
             
         Returns:
             bool: 是否成功生成帧
@@ -139,7 +144,8 @@ class AnimationGenerator:
                 
                 # 渲染场景
                 frame = self.renderer.render_scene(
-                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)]
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size
                 )
                 
                 if frame is None:
@@ -156,7 +162,8 @@ class AnimationGenerator:
             return False
     
     def generate_zoom_frames(self, n_frames: int = 24, start_factor: float = 3.0,
-                          end_factor: float = 1.5) -> bool:
+                          end_factor: float = 1.5,
+                          window_size: Optional[Tuple[int, int]] = None) -> bool:
         """
         生成缩放动画帧，相机从远到近
         
@@ -164,6 +171,7 @@ class AnimationGenerator:
             n_frames: 帧数
             start_factor: 起始距离因子
             end_factor: 结束距离因子
+            window_size: 输出分辨率(width, height)
             
         Returns:
             bool: 是否成功生成帧
@@ -206,7 +214,8 @@ class AnimationGenerator:
                 
                 # 渲染场景
                 frame = self.renderer.render_scene(
-                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)]
+                    camera_position=[(cam_x, cam_y, cam_z), (center_x, center_y, center_z), (0, 1, 0)],
+                    window_size=window_size
                 )
                 
                 if frame is None:

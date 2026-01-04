@@ -7,9 +7,9 @@ from litemapy import Schematic
 from astrbot import logger
 
 from ..core.model_3d.model_builder import ModelBuilder
-from ..core.model_3d.surface_detector import SurfaceDetector
 from ..core.model_3d.color_mapper import ColorMapper
 from ..core.render_3d.pyvista_renderer import PyVistaRenderer
+from ..core.render_3d.surface_builder import SurfaceBuilder
 from ..core.render_3d.animation_generator import AnimationGenerator
 from ..core.render_3d.gif_exporter import GifExporter
 from ..utils.config import Config
@@ -32,7 +32,10 @@ class Render3DManager:
     
     async def render_litematic_3d_async(self, file_path: str, animation_type: str = "rotation",
                                      frames: int = 36, duration: int = 100, 
-                                     elevation: float = 30.0, optimize: bool = True) -> str:
+                                     elevation: float = 30.0, optimize: bool = True,
+                                     window_size: Optional[Tuple[int, int]] = None,
+                                     native_textures: bool = False,
+                                     native_max_size: Optional[Tuple[int, int]] = None) -> str:
         """
         异步渲染litematic文件并生成3D动画GIF
         
@@ -43,6 +46,9 @@ class Render3DManager:
             duration: 每帧持续时间(毫秒)
             elevation: 相机仰角(度)
             optimize: 是否优化GIF大小
+            window_size: 输出分辨率(width, height)，None表示默认；native_textures为True时会自动估算
+            native_textures: 是否使用贴图原生分辨率
+            native_max_size: 原生分辨率自动估算的最大尺寸(width, height)
             
         Returns:
             str: 输出文件路径
@@ -53,12 +59,16 @@ class Render3DManager:
         # 使用asyncio.to_thread将同步操作包装成异步
         return await asyncio.to_thread(
             self.render_litematic_3d,
-            file_path, animation_type, frames, duration, elevation, optimize
+            file_path, animation_type, frames, duration, elevation, optimize,
+            window_size, native_textures, native_max_size
         )
     
     def render_litematic_3d(self, file_path: str, animation_type: str = "rotation",
                          frames: int = 36, duration: int = 100, 
-                         elevation: float = 30.0, optimize: bool = True) -> str:
+                         elevation: float = 30.0, optimize: bool = True,
+                         window_size: Optional[Tuple[int, int]] = None,
+                         native_textures: bool = False,
+                         native_max_size: Optional[Tuple[int, int]] = None) -> str:
         """
         渲染litematic文件并生成3D动画GIF
         
@@ -69,6 +79,9 @@ class Render3DManager:
             duration: 每帧持续时间(毫秒)
             elevation: 相机仰角(度)
             optimize: 是否优化GIF大小
+            window_size: 输出分辨率(width, height)，None表示默认；native_textures为True时会自动估算
+            native_textures: 是否使用贴图原生分辨率
+            native_max_size: 原生分辨率自动估算的最大尺寸(width, height)
             
         Returns:
             str: 输出文件路径
@@ -91,20 +104,31 @@ class Render3DManager:
             model_data = model_builder.get_model_data()
             logger.info(f"模型构建完成，包含 {model_builder.get_block_count()} 个方块")
             
-            # 3. 检测可见表面
-            logger.info("检测可见表面...")
-            surface_detector = SurfaceDetector(model_data)
-            surface_detector.detect_visible_surfaces()
-            surface_data = surface_detector.get_surface_data_for_rendering()
-            logger.info(f"检测到 {len(surface_data)} 个可见表面")
+            # 3. 构建渲染表面（包含纹理采样）
+            logger.info("构建渲染表面...")
+            surface_builder = SurfaceBuilder(model_data, self.resource_dir, native_textures=native_textures)
+            surface_data = surface_builder.build_surfaces()
+            logger.info(f"生成 {len(surface_data)} 个渲染表面")
+
+            if window_size is None and native_textures:
+                texture_size = surface_builder.texture_sampler.get_native_texture_size()
+                window_size = self._calculate_native_window_size(
+                    model_data, texture_size, native_max_size
+                )
             
-            # 4. 创建颜色映射器
+            # 4. 创建颜色映射器（作为兜底）
             logger.info("创建颜色映射...")
             color_mapper = ColorMapper(self.resource_dir)
             
             # 5. 创建渲染器
             logger.info("创建渲染器...")
-            renderer = PyVistaRenderer(model_data, surface_data, color_mapper)
+            renderer = PyVistaRenderer(
+                model_data,
+                surface_data,
+                color_mapper,
+                resource_dir=self.resource_dir,
+                native_textures=native_textures
+            )
             
             # 6. 创建网格
             logger.info("创建网格...")
@@ -120,23 +144,27 @@ class Render3DManager:
             if animation_type == "rotation":
                 success = animation_generator.generate_rotation_frames(
                     n_frames=frames, 
-                    elevation=elevation
+                    elevation=elevation,
+                    window_size=window_size
                 )
             elif animation_type == "orbit":
                 success = animation_generator.generate_orbit_frames(
                     n_frames=frames,
                     start_elevation=0,
-                    end_elevation=90
+                    end_elevation=90,
+                    window_size=window_size
                 )
             elif animation_type == "zoom":
                 success = animation_generator.generate_zoom_frames(
-                    n_frames=frames
+                    n_frames=frames,
+                    window_size=window_size
                 )
             else:
                 # 默认为旋转动画
                 success = animation_generator.generate_rotation_frames(
                     n_frames=frames, 
-                    elevation=elevation
+                    elevation=elevation,
+                    window_size=window_size
                 )
             
             if not success:
@@ -172,13 +200,19 @@ class Render3DManager:
             logger.error(f"3D渲染过程中出现未知错误: {e}")
             raise RenderError(f"3D渲染失败: {str(e)}", code=2000)
             
-    def render_single_view(self, file_path: str, view_angle: Tuple[float, float, float] = None) -> str:
+    def render_single_view(self, file_path: str, view_angle: Tuple[float, float, float] = None,
+                           window_size: Optional[Tuple[int, int]] = None,
+                           native_textures: bool = False,
+                           native_max_size: Optional[Tuple[int, int]] = None) -> str:
         """
         渲染litematic文件的单一视图
         
         Args:
             file_path: litematic文件路径
             view_angle: 视角(x, y, z)，如果为None则使用默认等距视角
+            window_size: 输出分辨率(width, height)，None表示默认；native_textures为True时会自动估算
+            native_textures: 是否使用贴图原生分辨率
+            native_max_size: 原生分辨率自动估算的最大尺寸(width, height)
             
         Returns:
             str: 输出图像文件路径
@@ -195,14 +229,25 @@ class Render3DManager:
                 
             model_data = model_builder.get_model_data()
             
-            # 2. 检测可见表面
-            surface_detector = SurfaceDetector(model_data)
-            surface_detector.detect_visible_surfaces()
-            surface_data = surface_detector.get_surface_data_for_rendering()
+            # 2. 构建渲染表面
+            surface_builder = SurfaceBuilder(model_data, self.resource_dir, native_textures=native_textures)
+            surface_data = surface_builder.build_surfaces()
+
+            if window_size is None and native_textures:
+                texture_size = surface_builder.texture_sampler.get_native_texture_size()
+                window_size = self._calculate_native_window_size(
+                    model_data, texture_size, native_max_size
+                )
             
             # 3. 创建颜色映射器和渲染器
             color_mapper = ColorMapper(self.resource_dir)
-            renderer = PyVistaRenderer(model_data, surface_data, color_mapper)
+            renderer = PyVistaRenderer(
+                model_data,
+                surface_data,
+                color_mapper,
+                resource_dir=self.resource_dir,
+                native_textures=native_textures
+            )
             
             # 4. 创建网格
             if not renderer.create_mesh():
@@ -219,11 +264,12 @@ class Render3DManager:
                 image = renderer.render_scene(
                     camera_position=[(view_angle[0], view_angle[1], view_angle[2]), 
                                    (center_x, center_y, center_z), 
-                                   (0, 1, 0)]
+                                   (0, 1, 0)],
+                    window_size=window_size
                 )
             else:
                 # 使用默认视角
-                image = renderer.render_scene()
+                image = renderer.render_scene(window_size=window_size)
             
             if image is None:
                 raise RenderError("渲染图像失败", code=2005)
@@ -242,4 +288,32 @@ class Render3DManager:
         except Exception as e:
             # 捕获并转换为渲染错误
             logger.error(f"3D渲染单视图时出现未知错误: {e}")
-            raise RenderError(f"3D渲染失败: {str(e)}", code=2000) 
+            raise RenderError(f"3D渲染失败: {str(e)}", code=2000)
+
+    def _calculate_native_window_size(self, model_data: Dict[str, Any],
+                                      texture_size: int,
+                                      max_size: Optional[Tuple[int, int]] = None) -> Tuple[int, int]:
+        dimensions = model_data.get("dimensions", {})
+        width_blocks = dimensions.get("width", 1)
+        length_blocks = dimensions.get("length", 1)
+        height_blocks = dimensions.get("height", 1)
+
+        width_blocks = max(1, int(width_blocks))
+        length_blocks = max(1, int(length_blocks))
+        height_blocks = max(1, int(height_blocks))
+
+        projected_width = width_blocks + length_blocks
+        projected_height = height_blocks + max(width_blocks, length_blocks) * 0.5
+
+        width = int(projected_width * texture_size)
+        height = int(projected_height * texture_size)
+
+        min_width, min_height = 800, 600
+        default_max_size = 16384
+        max_width, max_height = max_size if max_size else (default_max_size, default_max_size)
+        max_width = max(min_width, max_width)
+        max_height = max(min_height, max_height)
+        width = max(min_width, min(width, max_width))
+        height = max(min_height, min(height, max_height))
+
+        return (width, height)

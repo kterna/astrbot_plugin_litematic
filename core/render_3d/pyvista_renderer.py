@@ -4,12 +4,16 @@ import pyvista as pv
 from typing import Dict, List, Tuple, Any, Optional
 from PIL import Image
 
+from .texture_sampler import TextureSampler
+
 class PyVistaRenderer:
     """
     使用PyVista进行3D渲染的渲染器
     """
     
-    def __init__(self, model_data: Dict[str, Any], surface_data: List[Dict[str, Any]], color_mapper: Any) -> None:
+    def __init__(self, model_data: Dict[str, Any], surface_data: List[Dict[str, Any]],
+                 color_mapper: Any, resource_dir: Optional[str] = None,
+                 native_textures: bool = False) -> None:
         """
         初始化PyVista渲染器
         
@@ -23,6 +27,11 @@ class PyVistaRenderer:
         self.color_mapper = color_mapper
         self.plotter = None
         self.mesh = None
+        self.textured_meshes: List[Tuple[pv.PolyData, pv.Texture]] = []
+        self.texture_sampler = (
+            TextureSampler(resource_dir, native_textures=native_textures)
+            if resource_dir else None
+        )
         
         # 渲染配置
         self.config = {
@@ -49,95 +58,25 @@ class PyVistaRenderer:
                 print("没有表面数据，无法创建网格")
                 return False
             
-            # 创建空网格
-            self.mesh = pv.PolyData()
+            self.mesh = None
+            self.textured_meshes = []
+
+            textured_surfaces = [
+                surface for surface in self.surface_data
+                if "texture" in surface and "uvs" in surface and self.texture_sampler
+            ]
+            colored_surfaces = [
+                surface for surface in self.surface_data
+                if "texture" not in surface or "uvs" not in surface
+            ]
             
-            # 为每个面创建一个正方形面片
-            all_verts = []  # 所有顶点
-            all_faces = []  # 所有面片
-            all_colors = []  # 所有颜色
-            
-            vert_count = 0
-            
-            # 每个面有4个顶点和1个面片定义
-            for surface in self.surface_data:
-                position = surface['position']
-                face = surface['face']
-                block_id = surface['block_id']
-                
-                # 获取面的颜色
-                color = self.color_mapper.get_face_color(block_id, face)
-                color_normalized = (color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
-                
-                # 根据面的方向创建顶点
-                x, y, z = position
-                vertices = []
-                
-                # 根据面朝向定义四个顶点
-                if face == 'top':  # +Y
-                    vertices = [
-                        [x, y + 1, z],
-                        [x + 1, y + 1, z],
-                        [x + 1, y + 1, z + 1],
-                        [x, y + 1, z + 1]
-                    ]
-                elif face == 'bottom':  # -Y
-                    vertices = [
-                        [x, y, z],
-                        [x, y, z + 1],
-                        [x + 1, y, z + 1],
-                        [x + 1, y, z]
-                    ]
-                elif face == 'north':  # -Z
-                    vertices = [
-                        [x, y, z],
-                        [x + 1, y, z],
-                        [x + 1, y + 1, z],
-                        [x, y + 1, z]
-                    ]
-                elif face == 'south':  # +Z
-                    vertices = [
-                        [x, y, z + 1],
-                        [x, y + 1, z + 1],
-                        [x + 1, y + 1, z + 1],
-                        [x + 1, y, z + 1]
-                    ]
-                elif face == 'east':  # +X
-                    vertices = [
-                        [x + 1, y, z],
-                        [x + 1, y, z + 1],
-                        [x + 1, y + 1, z + 1],
-                        [x + 1, y + 1, z]
-                    ]
-                elif face == 'west':  # -X
-                    vertices = [
-                        [x, y, z],
-                        [x, y + 1, z],
-                        [x, y + 1, z + 1],
-                        [x, y, z + 1]
-                    ]
-                
-                # 添加顶点
-                for vertex in vertices:
-                    all_verts.append(vertex)
-                    all_colors.append(color_normalized)
-                
-                # 添加面片 (四边形，需要5个整数：4个顶点索引)
-                face_indices = [4]  # 第一个数字是面的顶点数
-                for i in range(4):
-                    face_indices.append(vert_count + i)
-                all_faces.extend(face_indices)
-                
-                # 更新顶点计数
-                vert_count += 4
-            
-            # 创建几何体
-            self.mesh = pv.PolyData(np.array(all_verts), np.array(all_faces))
-            
-            # 添加颜色
-            self.mesh.point_data['colors'] = np.array(all_colors)
-            
-            return True
+            if textured_surfaces and self.texture_sampler:
+                self.textured_meshes = self._build_textured_meshes(textured_surfaces)
+
+            if colored_surfaces:
+                self.mesh = self._build_color_mesh(colored_surfaces)
+
+            return bool(self.mesh or self.textured_meshes)
             
         except Exception as e:
             print(f"创建网格时出错: {e}")
@@ -158,7 +97,7 @@ class PyVistaRenderer:
             Optional[Image.Image]: 渲染的图像，如果失败则返回None
         """
         try:
-            if self.mesh is None:
+            if self.mesh is None and not self.textured_meshes:
                 if not self.create_mesh():
                     return None
             
@@ -177,15 +116,26 @@ class PyVistaRenderer:
             plotter.set_background(self.config['background_color'])
             
             # 添加网格到场景
-            plotter.add_mesh(
-                self.mesh,
-                scalars='colors',
-                rgb=True,
-                show_edges=False,
-                smooth_shading=self.config['smooth_shading'],
-                render_points_as_spheres=self.config['render_points_as_spheres'],
-                lighting=self.config['lighting']
-            )
+            for mesh, texture in self.textured_meshes:
+                plotter.add_mesh(
+                    mesh,
+                    texture=texture,
+                    show_edges=False,
+                    smooth_shading=self.config['smooth_shading'],
+                    render_points_as_spheres=self.config['render_points_as_spheres'],
+                    lighting=self.config['lighting']
+                )
+
+            if self.mesh is not None:
+                plotter.add_mesh(
+                    self.mesh,
+                    scalars='colors',
+                    rgb=True,
+                    show_edges=False,
+                    smooth_shading=self.config['smooth_shading'],
+                    render_points_as_spheres=self.config['render_points_as_spheres'],
+                    lighting=self.config['lighting']
+                )
             
             # 设置相机位置
             if self.config['camera_position'] == 'iso':
@@ -243,4 +193,128 @@ class PyVistaRenderer:
         """
         for key, value in config.items():
             if key in self.config:
-                self.config[key] = value 
+                self.config[key] = value
+
+    def _build_color_mesh(self, surfaces: List[Dict[str, Any]]) -> pv.PolyData:
+        all_verts: List[List[float]] = []
+        all_faces: List[int] = []
+        all_colors: List[Tuple[float, float, float]] = []
+        vert_count = 0
+
+        for surface in surfaces:
+            face = surface.get('face')
+            block_id = surface.get('block_id', '')
+
+            if 'color' in surface:
+                color = surface['color']
+            else:
+                color = self.color_mapper.get_face_color(block_id, face)
+            color_normalized = (color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+
+            if 'vertices' in surface:
+                vertices = surface['vertices']
+            else:
+                position = surface['position']
+                x, y, z = position
+                vertices = []
+
+                if face == 'top':
+                    vertices = [
+                        [x, y + 1, z],
+                        [x + 1, y + 1, z],
+                        [x + 1, y + 1, z + 1],
+                        [x, y + 1, z + 1]
+                    ]
+                elif face == 'bottom':
+                    vertices = [
+                        [x, y, z],
+                        [x, y, z + 1],
+                        [x + 1, y, z + 1],
+                        [x + 1, y, z]
+                    ]
+                elif face == 'north':
+                    vertices = [
+                        [x, y, z],
+                        [x + 1, y, z],
+                        [x + 1, y + 1, z],
+                        [x, y + 1, z]
+                    ]
+                elif face == 'south':
+                    vertices = [
+                        [x, y, z + 1],
+                        [x, y + 1, z + 1],
+                        [x + 1, y + 1, z + 1],
+                        [x + 1, y, z + 1]
+                    ]
+                elif face == 'east':
+                    vertices = [
+                        [x + 1, y, z],
+                        [x + 1, y, z + 1],
+                        [x + 1, y + 1, z + 1],
+                        [x + 1, y + 1, z]
+                    ]
+                elif face == 'west':
+                    vertices = [
+                        [x, y, z],
+                        [x, y + 1, z],
+                        [x, y + 1, z + 1],
+                        [x, y, z + 1]
+                    ]
+
+            for vertex in vertices:
+                all_verts.append(vertex)
+                all_colors.append(color_normalized)
+
+            all_faces.extend([4, vert_count, vert_count + 1, vert_count + 2, vert_count + 3])
+            vert_count += 4
+
+        mesh = pv.PolyData(np.array(all_verts, dtype=np.float32), np.array(all_faces))
+        mesh.point_data['colors'] = np.array(all_colors, dtype=np.float32)
+        return mesh
+
+    def _build_textured_meshes(self, surfaces: List[Dict[str, Any]]) -> List[Tuple[pv.PolyData, pv.Texture]]:
+        if not self.texture_sampler:
+            return []
+
+        grouped: Dict[Tuple[str, Optional[Tuple[int, int, int]]], List[Dict[str, Any]]] = {}
+        for surface in surfaces:
+            texture_name = surface.get("texture")
+            tint = surface.get("tint")
+            if not texture_name:
+                continue
+            grouped.setdefault((texture_name, tint), []).append(surface)
+
+        textured_meshes: List[Tuple[pv.PolyData, pv.Texture]] = []
+
+        for (texture_name, tint), group_surfaces in grouped.items():
+            all_verts: List[List[float]] = []
+            all_faces: List[int] = []
+            all_tcoords: List[Tuple[float, float]] = []
+            vert_count = 0
+
+            for surface in group_surfaces:
+                vertices = surface.get("vertices", [])
+                uvs = surface.get("uvs", [])
+                if len(vertices) != len(uvs):
+                    continue
+
+                for vertex, uv in zip(vertices, uvs):
+                    all_verts.append(vertex)
+                    all_tcoords.append(uv)
+
+                all_faces.extend([4, vert_count, vert_count + 1, vert_count + 2, vert_count + 3])
+                vert_count += 4
+
+            if not all_verts:
+                continue
+
+            mesh = pv.PolyData(np.array(all_verts, dtype=np.float32), np.array(all_faces))
+            mesh.active_texture_coordinates = np.array(all_tcoords, dtype=np.float32)
+
+            texture_image = self.texture_sampler.get_texture_image(texture_name, tint)
+            texture_image = texture_image.transpose(Image.FLIP_TOP_BOTTOM)
+            texture = pv.Texture(np.array(texture_image))
+
+            textured_meshes.append((mesh, texture))
+
+        return textured_meshes
