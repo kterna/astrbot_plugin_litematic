@@ -19,10 +19,41 @@ from ..utils.exceptions import (
 from ..utils.logging_utils import log_error, log_operation
 
 class MaterialCommand:
+    # 数量单位常量
+    STACK_SIZE: int = 64  # 一组
+    SHULKER_BOX_SIZE: int = 27 * 64  # 一盒（潜影盒）= 27组 = 1728个
+    CHEST_OF_SHULKERS_SIZE: int = 54 * 27 * 64  # 一箱盒（一箱潜影盒）= 54盒 = 93,312个
+
     def __init__(self, file_manager: FileManager, category_manager: CategoryManager, lang_manager: LangManager) -> None:
         self.file_manager: FileManager = file_manager
         self.category_manager: CategoryManager = category_manager
         self.lang_manager: LangManager = lang_manager
+
+    def _format_count(self, count: int) -> str:
+        """
+        格式化数量，添加组、盒、箱盒的换算
+        四舍五入后不满0.5的单位会被省略
+
+        Args:
+            count: 物品数量
+
+        Returns:
+            str: 格式化后的数量字符串
+        """
+        stacks = count / self.STACK_SIZE
+        shulker_boxes = count / self.SHULKER_BOX_SIZE
+        chest_of_shulkers = count / self.CHEST_OF_SHULKERS_SIZE
+
+        parts = [f"{count}个"]
+
+        if stacks >= 0.5:
+            parts.append(f"{stacks:.2f}组")
+        if shulker_boxes >= 0.5:
+            parts.append(f"{shulker_boxes:.2f}盒")
+        if chest_of_shulkers >= 0.5:
+            parts.append(f"{chest_of_shulkers:.2f}箱盒")
+
+        return "-".join(parts)
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "") -> MessageResponse:
         """
@@ -73,7 +104,7 @@ class MaterialCommand:
                 for block_id, count in sorted_blocks:
                     # 使用翻译功能翻译方块ID
                     translated_name = self.lang_manager.translate_block(block_id)
-                    result += f"- {translated_name}: {count}个\n"
+                    result += f"- {translated_name}: {self._format_count(count)}\n"
             else:
                 result += "无方块材料\n"
             
@@ -84,7 +115,7 @@ class MaterialCommand:
                 for entity_id, count in sorted_entities:
                     # 使用翻译功能翻译实体ID
                     translated_name = self.lang_manager.translate_entity(entity_id)
-                    result += f"- {translated_name}: {count}个\n"
+                    result += f"- {translated_name}: {self._format_count(count)}\n"
             
             # 添加方块实体信息
             if tile_counts:
@@ -95,11 +126,11 @@ class MaterialCommand:
                     if isinstance(tile_id, tuple) and len(tile_id) > 0:
                         # 使用翻译功能翻译方块实体ID
                         translated_name = self.lang_manager.translate_block(tile_id[0])
-                        result += f"- {translated_name}: {count}个\n"
+                        result += f"- {translated_name}: {self._format_count(count)}\n"
                     else:
                         # 使用翻译功能翻译方块实体ID
                         translated_name = self.lang_manager.translate_block(tile_id)
-                        result += f"- {translated_name}: {count}个\n"
+                        result += f"- {translated_name}: {self._format_count(count)}\n"
             
             log_operation("分析材料", True, {"category": category, "filename": filename})
             yield event.plain_result(result)
