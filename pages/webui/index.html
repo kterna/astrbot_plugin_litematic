@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Litematic WebUI</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="./vendor/deepslate.umd.js"></script>
+    <script src="./vendor/gl-matrix-min.js"></script>
+    <script src="./vendor/assets.js"></script>
+    <script src="./vendor/opaque.js"></script>
+    <script>
+      if (typeof assets !== "undefined") {
+        window.LITEMATIC_ASSETS = assets;
+      }
+      if (typeof OPAQUE_BLOCKS !== "undefined") {
+        window.LITEMATIC_OPAQUE_BLOCKS = OPAQUE_BLOCKS;
+        window.LITEMATIC_TRANSPARENT_BLOCKS = TRANSPARENT_BLOCKS;
+        window.LITEMATIC_NON_SELF_CULLING = NON_SELF_CULLING;
+      }
+    </script>
+  </head>
+  <body>
+    <main class="layout">
+      <aside class="sidebar">
+        <header class="brand">
+          <div>
+            <h1>Litematic</h1>
+            <p id="subtitle">投影文件 WebUI</p>
+          </div>
+          <button id="refreshButton" class="icon-button" type="button" title="刷新">R</button>
+        </header>
+
+        <section class="panel">
+          <label class="field">
+            <span>分类</span>
+            <select id="categorySelect"></select>
+          </label>
+          <label class="field">
+            <span>搜索</span>
+            <input id="searchInput" type="search" placeholder="输入文件名" />
+          </label>
+        </section>
+
+        <section class="file-section">
+          <div class="section-title">
+            <span>文件</span>
+            <span id="fileCount">0 个</span>
+          </div>
+          <div id="fileList" class="file-list"></div>
+        </section>
+      </aside>
+
+      <section class="viewer-shell">
+        <div class="toolbar">
+          <div>
+            <div id="activeTitle" class="active-title">未选择文件</div>
+            <div id="activeMeta" class="active-meta">选择左侧文件后开始渲染</div>
+          </div>
+          <div class="toolbar-actions">
+            <button id="resetViewButton" type="button">重置视角</button>
+            <button id="materialsButton" type="button">材料清单</button>
+          </div>
+        </div>
+
+        <div id="viewer" class="viewer">
+          <canvas id="renderCanvas"></canvas>
+          <div id="emptyState" class="empty-state">暂无渲染内容</div>
+        </div>
+
+        <div class="statusbar">
+          <span id="statusText">正在初始化资源...</span>
+          <span>拖拽旋转，滚轮缩放，WASD/方向键移动</span>
+        </div>
+      </section>
+
+      <aside id="materialsDrawer" class="materials-drawer" hidden>
+        <header>
+          <h2>材料清单</h2>
+          <button id="closeMaterialsButton" class="icon-button" type="button" title="关闭">X</button>
+        </header>
+        <div id="materialsList" class="materials-list"></div>
+      </aside>
+    </main>
+
+    <img
+      id="atlasImage"
+      src="./vendor/atlas.png"
+      crossorigin="anonymous"
+      hidden
+      alt=""
+    />
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

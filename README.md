@@ -16,6 +16,7 @@
 - 📝 **投影信息**：查看投影文件的详细信息
 - 🖼️ **投影预览**：生成投影的2D渲染图像，支持多角度查看
 - 🧊 **3D渲染**：生成投影的3D模型视图，支持旋转和缩放
+- 🖥️ **WebUI 渲染**：在 AstrBot 插件页面中浏览分类、搜索文件，并使用 Deepslate 交互式渲染 `.litematic` 文件
 
 ![示例](image/红石.png)
 ![示例](image/建筑.png)
@@ -37,6 +38,19 @@
 - **投影信息**：`/投影信息 分类名 文件名`
 - **投影预览**：`/投影预览 分类名 文件名 [视角]`
 - **3D预览**：`/投影3D 分类名 文件名`
+
+### WebUI 页面
+
+AstrBot 支持插件 WebUI 后，可以在管理后台的插件页面打开 `webui` 页面。
+
+WebUI 支持以下操作：
+- 按分类查看已上传的 `.litematic` 文件
+- 按文件名搜索
+- 在浏览器内使用 Deepslate 渲染投影
+- 鼠标拖拽旋转、滚轮缩放、WASD 或方向键移动视角
+- 查看当前投影的材料清单
+
+WebUI 只读取插件已有文件，不会修改、删除或重新保存投影文件。
 
 ### 文件上传步骤
 
@@ -105,6 +119,14 @@
 
 投影文件（`.litematic`）存储在 `data/litematic/` 目录下，按分类进行组织管理。每个分类对应一个子文件夹。
 
+### WebUI 配置
+
+- `webui_max_file_size_bytes`：WebUI 单文件读取上限，默认 `33554432`（32MB）。WebUI 会将 `.litematic` 文件编码后发送给浏览器渲染，过大的文件建议继续使用命令生成预览图或 3D 动画。
+
+### WebUI 资源说明
+
+当前 WebUI 使用 Deepslate 进行浏览器端渲染，Deepslate 运行库和 Minecraft 方块材质图集已随插件页面本地提供，不依赖外部 CDN。
+
 ## 更新日志
 
 详见 [CHANGELOG.md](CHANGELOG.md)
@@ -125,5 +147,5 @@
 ## 作者信息
 
 - 作者：kterna
-- 版本：1.3.5
+- 版本：1.4.0
 - 仓库：https://github.com/kterna/astrbot_plugin_litematic

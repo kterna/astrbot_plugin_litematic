@@ -22,5 +22,11 @@
         "type": "bool",
         "hint": "开启后使用详细的方块模型进行渲染，关闭则使用简单颜色渲染",
         "default": true
+    },
+    "webui_max_file_size_bytes": {
+        "description": "WebUI 单文件读取上限（字节）",
+        "type": "int",
+        "hint": "WebUI 会把 .litematic 文件内容编码后发送给浏览器渲染。默认 33554432（32MB），过大的文件建议继续使用命令行预览。",
+        "default": 33554432
     }
 }

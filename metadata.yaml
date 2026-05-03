@@ -1,5 +1,5 @@
 name: litematic # 插件的唯一识别名
-desc: 识别并分析Litematic文件的AstrBot插件 # 插件简短描述
-version: v1.3.5 # 插件版本号
+desc: 识别、分析并通过 WebUI 渲染 Litematic 文件的 AstrBot 插件 # 插件简短描述
+version: v1.4.0 # 插件版本号
 author: kterna # 作者
 repo: https://github.com/kterna/astrbot_plugin_litematic # 插件的仓库地址

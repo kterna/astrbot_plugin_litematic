@@ -1,6 +1,11 @@
+import base64
 import os
-from typing import List, Dict, AsyncGenerator
+import time
+from pathlib import Path
+from typing import Any, List, Dict, AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
+
+from quart import jsonify, request
 
 from astrbot import logger
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
@@ -23,7 +28,7 @@ from .commands.info_command import InfoCommand
 from .commands.preview_command import PreviewCommand
 from .commands.render3d_command import Render3DCommand
 
-@register("litematic", "kterna", "读取处理Litematic文件", "1.3.5", "https://github.com/kterna/astrbot_plugin_litematic")
+@register("litematic", "kterna", "读取、管理并 WebUI 渲染 Litematic 文件", "1.4.0", "https://github.com/kterna/astrbot_plugin_litematic")
 class LitematicPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
         super().__init__(context)
@@ -54,6 +59,7 @@ class LitematicPlugin(Star):
         # 保留原有变量以保持兼容性
         self.litematic_dir: str = self.config.get_litematic_dir()
         self.categories_file: str = self.config.get_categories_file()
+        self.webui_max_file_size_bytes: int = self.config.get_config_value("webui_max_file_size_bytes", 33554432)
         os.makedirs(self.litematic_dir, exist_ok=True)
         os.makedirs(os.path.join(plugin_dir, "temp"), exist_ok=True)
         
@@ -61,6 +67,147 @@ class LitematicPlugin(Star):
         
         # 保留原有的线程池
         self.executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=self.config.get_config_value("max_workers", 3))
+
+        self._register_webui_apis(context)
+
+    def _register_webui_apis(self, context: Context) -> None:
+        """注册 WebUI 读取接口。"""
+        context.register_web_api(
+            "/litematic/categories",
+            self.webui_categories,
+            ["GET"],
+            "获取 Litematic 分类与文件统计",
+        )
+        context.register_web_api(
+            "/litematic/files",
+            self.webui_files,
+            ["GET"],
+            "获取指定分类下的 Litematic 文件列表",
+        )
+        context.register_web_api(
+            "/litematic/file",
+            self.webui_file,
+            ["GET"],
+            "读取指定 Litematic 文件内容",
+        )
+
+    def _webui_response(self, data: Any = None, *, ok: bool = True, error: str = "", status: int = 200):
+        return jsonify({"ok": ok, "data": data, "error": error}), status
+
+    def _category_names_for_webui(self) -> List[str]:
+        configured = self.category_manager.get_categories()
+        data_root = Path(self.file_manager.get_litematic_dir())
+        disk_categories: List[str] = []
+        if data_root.exists():
+            disk_categories = sorted(path.name for path in data_root.iterdir() if path.is_dir())
+
+        names: List[str] = []
+        seen = set()
+        for name in [*configured, *disk_categories]:
+            if name and name not in seen:
+                names.append(name)
+                seen.add(name)
+        return names
+
+    def _category_dir_for_webui(self, category: str) -> Path:
+        if not category or category in {".", ".."} or "/" in category or "\\" in category:
+            raise ValueError("分类名称无效")
+
+        root = Path(self.file_manager.get_litematic_dir()).resolve()
+        category_dir = (root / category).resolve()
+        category_dir.relative_to(root)
+        if not category_dir.is_dir():
+            raise FileNotFoundError(f"分类不存在：{category}")
+        return category_dir
+
+    def _file_path_for_webui(self, category: str, filename: str) -> Path:
+        if not filename or filename != os.path.basename(filename):
+            raise ValueError("文件名称无效")
+        if not filename.endswith(".litematic"):
+            raise ValueError("仅支持 .litematic 文件")
+
+        category_dir = self._category_dir_for_webui(category)
+        file_path = (category_dir / filename).resolve()
+        file_path.relative_to(category_dir)
+        if not file_path.is_file():
+            raise FileNotFoundError(f"文件不存在：{filename}")
+        return file_path
+
+    def _file_info_for_webui(self, path: Path) -> Dict[str, Any]:
+        stat = path.stat()
+        return {
+            "name": path.name,
+            "size": stat.st_size,
+            "modified_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+            "modified_ts": int(stat.st_mtime),
+        }
+
+    async def webui_categories(self):
+        """WebUI：获取分类列表。"""
+        try:
+            categories = []
+            for category in self._category_names_for_webui():
+                try:
+                    category_dir = self._category_dir_for_webui(category)
+                    files = sorted(path for path in category_dir.iterdir() if path.is_file() and path.name.endswith(".litematic"))
+                except FileNotFoundError:
+                    files = []
+
+                categories.append(
+                    {
+                        "name": category,
+                        "count": len(files),
+                        "total_size": sum(path.stat().st_size for path in files),
+                    }
+                )
+            return self._webui_response(categories)
+        except Exception as exc:
+            logger.error(f"Litematic WebUI 获取分类失败: {exc}")
+            return self._webui_response(ok=False, error=str(exc), status=500)
+
+    async def webui_files(self):
+        """WebUI：获取指定分类的文件列表。"""
+        category = (request.args.get("category") or "").strip()
+        try:
+            category_dir = self._category_dir_for_webui(category)
+            files = sorted(
+                (
+                    self._file_info_for_webui(path)
+                    for path in category_dir.iterdir()
+                    if path.is_file() and path.name.endswith(".litematic")
+                ),
+                key=lambda item: item["modified_ts"],
+                reverse=True,
+            )
+            return self._webui_response({"category": category, "files": files})
+        except Exception as exc:
+            status = 404 if isinstance(exc, FileNotFoundError) else 400
+            return self._webui_response(ok=False, error=str(exc), status=status)
+
+    async def webui_file(self):
+        """WebUI：读取指定文件，返回 base64 内容。"""
+        category = (request.args.get("category") or "").strip()
+        filename = (request.args.get("filename") or "").strip()
+        try:
+            file_path = self._file_path_for_webui(category, filename)
+            stat = file_path.stat()
+            if stat.st_size > self.webui_max_file_size_bytes:
+                raise ValueError(
+                    f"文件超过 WebUI 读取上限：{format(stat.st_size, ',')} > {format(self.webui_max_file_size_bytes, ',')} 字节"
+                )
+            content = base64.b64encode(file_path.read_bytes()).decode("ascii")
+            return self._webui_response(
+                {
+                    "category": category,
+                    "filename": file_path.name,
+                    "size": stat.st_size,
+                    "modified_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                    "content_base64": content,
+                }
+            )
+        except Exception as exc:
+            status = 404 if isinstance(exc, FileNotFoundError) else 400
+            return self._webui_response(ok=False, error=str(exc), status=status)
     
     def load_categories(self) -> None:
         """保留兼容性，实际调用CategoryManager"""
