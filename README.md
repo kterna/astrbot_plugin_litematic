@@ -135,7 +135,7 @@ WebUI 只读取插件已有文件，不会修改、删除或重新保存投影�
 
 启用 `render_backend=deepslate` 时，命令会在服务端启动无头 Chromium，通过 Deepslate/WebGL 渲染投影并截图。运行环境需要安装 Chromium 和 Playwright Python 包；Docker 环境中可使用 `/usr/bin/chromium`。
 
-Deepslate 后端会尽量保持原有命令参数语义：`/投影预览 combined` 仍生成俯视图、正视图、侧视图三视图组合，并保留布局、间距和标签参数；`/投影3D native` 会按投影尺寸和贴图分辨率估算画布，`default` 使用 `800x600`，也可以传入 `1024x768` 这类固定分辨率。GIF 仍受 `max_gif_size_bytes` 控制，过大时会按原逻辑估算降采样尺寸。
+Deepslate 后端会尽量保持原有命令参数语义：`/投影预览 combined` 仍生成俯视图、正视图、侧视图三视图组合，并保留布局、间距和标签参数；`/投影3D native` 会按投影尺寸和贴图分辨率估算画布，`default` 使用 `800x600`。`native/default` 仍受 `max_gif_size_bytes` 控制，过大时会按原逻辑估算降采样尺寸；显式传入 `1024x768`、`1920x1080` 这类固定分辨率时，Deepslate 会按指定画布渲染，并在结果说明中显示实际 GIF 分辨率。
 
 ## 更新日志
 

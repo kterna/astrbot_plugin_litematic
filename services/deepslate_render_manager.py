@@ -110,16 +110,24 @@ class DeepslateRenderManager:
         window_size: Optional[Tuple[int, int]] = None,
         native_textures: bool = False,
         native_max_size: Optional[Tuple[int, int]] = None,
+        optimize: bool = True,
     ) -> str:
         requested_size = self._resolve_gif_window_size(file_path, window_size, native_textures, native_max_size)
         exporter = GifExporter()
-        resize_to = exporter.estimate_scaled_size(
-            requested_size[0],
-            requested_size[1],
-            frames,
-            int(self.config.get_config_value("max_gif_size_bytes", 5 * 1024 * 1024)),
-        )
+        resize_to = None
+        if optimize:
+            resize_to = exporter.estimate_scaled_size(
+                requested_size[0],
+                requested_size[1],
+                frames,
+                int(self.config.get_config_value("max_gif_size_bytes", 5 * 1024 * 1024)),
+            )
         width, height = self._normalize_window_size(resize_to or requested_size, default=(800, 600))
+        logger.info(
+            f"Deepslate 3D 渲染参数: animation={animation_type}, frames={frames}, "
+            f"duration={duration}, elevation={elevation}, requested={requested_size}, "
+            f"actual_canvas={(width, height)}, optimize={optimize}"
+        )
         with self._open_page(width, height) as page:
             self._load_litematic(page, file_path, width, height, view_type="iso")
             frame_iter = self._iter_frames(page, animation_type, frames, elevation)

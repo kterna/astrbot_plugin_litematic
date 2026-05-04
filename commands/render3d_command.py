@@ -4,6 +4,7 @@ import traceback
 import asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from astrbot import logger
+from PIL import Image as PILImage
 from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
 
@@ -119,7 +120,9 @@ class Render3DCommand:
             
             # 发送说明文本
             caption = self._get_animation_caption(animation_type)
-            yield event.plain_result(f"【{os.path.basename(file_path)}】3D{caption}")
+            yield event.plain_result(
+                f"【{os.path.basename(file_path)}】3D{caption}{self._get_gif_info_text(gif_path)}"
+            )
             
             # 删除临时文件
             if os.path.exists(gif_path):
@@ -175,8 +178,9 @@ class Render3DCommand:
             "- 帧数: 1-120之间的整数，默认36\n"
             "- 持续时间: 每帧的持续时间(毫秒)，50-500之间，默认100\n"
             "- 仰角: 相机仰角(度)，0-90之间，默认30\n"
-            "- 分辨率: native(按贴图原生分辨率自动计算，可用 native@12000 提高上限)\n"
-            "          default(固定800x600) / WxH，例如 1024x768\n\n"
+            "- 分辨率: native(按贴图原生分辨率自动计算，native@12000 表示设置自动估算上限)\n"
+            "          default(固定800x600，仍会按GIF大小限制自动降采样)\n"
+            "          WxH(固定指定分辨率，Deepslate 后端按指定画布渲染)，例如 1024x768\n\n"
             "例如：/投影3D 建筑 房子 rotation 36 100 30 native\n"
             "或：/投影3D 建筑 房子 rotation 36 100 30 1024x768"
         )
@@ -246,6 +250,7 @@ class Render3DCommand:
                     window_size,
                     native_textures,
                     native_max_size,
+                    window_size is None,
                 )
             except Exception as exc:
                 logger.warning(f"Deepslate 3D 渲染失败，回退 PyVista 后端: {exc}")
@@ -261,3 +266,15 @@ class Render3DCommand:
             native_textures=native_textures,
             native_max_size=native_max_size,
         )
+
+    def _get_gif_info_text(self, gif_path: str) -> str:
+        try:
+            with PILImage.open(gif_path) as image:
+                frames = getattr(image, "n_frames", 1)
+                duration = image.info.get("duration")
+                text = f"（{image.size[0]}x{image.size[1]}，{frames}帧"
+                if duration:
+                    text += f"，{duration}ms/帧"
+                return text + "）"
+        except Exception:
+            return ""
