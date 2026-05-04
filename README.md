@@ -17,6 +17,7 @@
 - 🖼️ **投影预览**：生成投影的2D渲染图像，支持多角度查看
 - 🧊 **3D渲染**：生成投影的3D模型视图，支持旋转和缩放
 - 🖥️ **WebUI 渲染**：在 AstrBot 插件页面中浏览分类、搜索文件，并使用 Deepslate 交互式渲染 `.litematic` 文件
+- ⚡ **Deepslate 命令渲染**：`/投影预览` 和 `/投影3D` 可优先使用 Chromium + Deepslate 生成图片或 GIF，无法等价处理时自动回退旧渲染后端
 
 ![示例](image/红石.png)
 ![示例](image/建筑.png)
@@ -122,10 +123,19 @@ WebUI 只读取插件已有文件，不会修改、删除或重新保存投影�
 ### WebUI 配置
 
 - `webui_max_file_size_bytes`：WebUI 单文件读取上限，默认 `33554432`（32MB）。WebUI 会将 `.litematic` 文件编码后发送给浏览器渲染，过大的文件建议继续使用命令生成预览图或 3D 动画。
+- `render_backend`：命令渲染后端，默认 `deepslate`。设置为 `python` 可让 `/投影预览` 和 `/投影3D` 仅使用旧 Python/PyVista 渲染后端。
+- `deepslate_browser_executable`：Chromium 可执行文件路径，默认 `/usr/bin/chromium`。
+- `deepslate_render_timeout_ms`：Deepslate 命令渲染超时时间，默认 `120000`。
 
 ### WebUI 资源说明
 
 当前 WebUI 使用 Deepslate 进行浏览器端渲染，Deepslate 运行库和 Minecraft 方块材质图集已随插件页面本地提供，不依赖外部 CDN。
+
+### Deepslate 命令渲染说明
+
+启用 `render_backend=deepslate` 时，命令会在服务端启动无头 Chromium，通过 Deepslate/WebGL 渲染投影并截图。运行环境需要安装 Chromium 和 Playwright Python 包；Docker 环境中可使用 `/usr/bin/chromium`。
+
+Deepslate 后端会尽量保持原有命令参数语义：`/投影预览 combined` 仍生成俯视图、正视图、侧视图三视图组合，并保留布局、间距和标签参数；`/投影3D native` 会按投影尺寸和贴图分辨率估算画布，`default` 使用 `800x600`，也可以传入 `1024x768` 这类固定分辨率。GIF 仍受 `max_gif_size_bytes` 控制，过大时会按原逻辑估算降采样尺寸。
 
 ## 更新日志
 

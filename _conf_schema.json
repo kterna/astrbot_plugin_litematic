@@ -28,5 +28,23 @@
         "type": "int",
         "hint": "WebUI 会把 .litematic 文件内容编码后发送给浏览器渲染。默认 33554432（32MB），过大的文件建议继续使用命令行预览。",
         "default": 33554432
+    },
+    "render_backend": {
+        "description": "命令渲染后端",
+        "type": "string",
+        "hint": "deepslate：/投影预览 与 /投影3D 优先使用 Chromium + Deepslate 渲染，无法等价处理时回退旧 Python/PyVista 后端；python：仅使用旧后端。",
+        "default": "deepslate"
+    },
+    "deepslate_browser_executable": {
+        "description": "Chromium 可执行文件路径",
+        "type": "string",
+        "hint": "Deepslate 命令渲染需要 Chromium。Docker 内通常为 /usr/bin/chromium。",
+        "default": "/usr/bin/chromium"
+    },
+    "deepslate_render_timeout_ms": {
+        "description": "Deepslate 渲染超时时间（毫秒）",
+        "type": "int",
+        "hint": "单次加载页面、解析或截图的超时时间，复杂投影可以适当调大。",
+        "default": 120000
     }
 }

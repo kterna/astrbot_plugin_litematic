@@ -7,6 +7,8 @@ from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image
 from ..services.file_manager import FileManager
 from ..services.render_manager import RenderManager, LAYOUT_MAPPING
+from ..services.deepslate_render_manager import DeepslateRenderManager
+from ..utils.config import Config
 from ..utils.types import CategoryType, FilePath, MessageResponse
 from ..utils.exceptions import (
     CategoryNotFoundError, 
@@ -17,9 +19,17 @@ from ..utils.exceptions import (
 )
 
 class PreviewCommand:
-    def __init__(self, file_manager: FileManager, render_manager: RenderManager) -> None:
+    def __init__(
+        self,
+        file_manager: FileManager,
+        render_manager: RenderManager,
+        deepslate_render_manager: Optional[DeepslateRenderManager] = None,
+        config: Optional[Config] = None,
+    ) -> None:
         self.file_manager: FileManager = file_manager
         self.render_manager: RenderManager = render_manager
+        self.deepslate_render_manager = deepslate_render_manager
+        self.config = config
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", 
                      view_type: str = "combined", layout: str = "", spacing: int = 0, 
@@ -70,15 +80,13 @@ class PreviewCommand:
             # 获取文件路径 - 使用异步方法
             file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
             
-            # 渲染litematic文件 - 使用异步方法
-            image_path: FilePath = await self.render_manager.render_litematic_async(
-                file_path, 
-                view_type, 
-                scale=1, 
-                layout=layout,
-                spacing=spacing,
-                add_labels=add_labels,
-                use_block_models=use_block_models
+            image_path = await self._render_preview(
+                file_path,
+                view_type,
+                layout,
+                spacing,
+                add_labels,
+                use_block_models,
             )
             
             # 准备消息链
@@ -118,7 +126,41 @@ class PreviewCommand:
             logger.error(f"生成预览图时出现未知错误: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
             yield event.plain_result(f"生成预览图时出现错误: {str(e)}")
-    
+
+    async def _render_preview(
+        self,
+        file_path: FilePath,
+        view_type: str,
+        layout: str,
+        spacing: int,
+        add_labels: bool,
+        use_block_models: bool,
+    ) -> FilePath:
+        backend = self.config.get_config_value("render_backend", "deepslate") if self.config else "deepslate"
+        if backend == "deepslate" and self.deepslate_render_manager and self.deepslate_render_manager.is_available():
+            try:
+                return await asyncio.to_thread(
+                    self.deepslate_render_manager.render_litematic_preview,
+                    file_path,
+                    view_type,
+                    layout,
+                    spacing,
+                    add_labels,
+                    use_block_models,
+                )
+            except Exception as exc:
+                logger.warning(f"Deepslate 预览渲染失败，回退 Python 后端: {exc}")
+
+        return await self.render_manager.render_litematic_async(
+            file_path,
+            view_type,
+            scale=1,
+            layout=layout,
+            spacing=spacing,
+            add_labels=add_labels,
+            use_block_models=use_block_models,
+        )
+
     def _get_view_caption(self, view_type: str) -> str:
         """
         获取视图类型对应的说明文字
@@ -195,4 +237,4 @@ class PreviewCommand:
             "- labels: 添加标签\n"
             "- nomodel: 禁用方块模型渲染\n\n"
             "例如：/投影预览 建筑 房子 combined:v:spacing=10:labels:nomodel"
-        ) 
+        )

@@ -1,6 +1,7 @@
 # 更新日志
 
 - v1.4.0 增加 AstrBot 插件 WebUI，可在浏览器中使用 Deepslate 交互式渲染 Litematic 文件
+- v1.4.0 增加 Deepslate 命令渲染后端，支持 `/投影预览` 与 `/投影3D` 优先走 Chromium + Deepslate，无法等价处理时自动回退旧后端
 - v1.3.5 材料统计添加组、盒、箱盒数量换算
 - v1.3.4 增加语言翻译功能
 - v1.3.3 优化3D渲染性能

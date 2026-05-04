@@ -17,6 +17,7 @@ from .services.file_manager import FileManager
 from .services.category_manager import CategoryManager
 from .services.render_manager import RenderManager
 from .services.render_3d_manager import Render3DManager
+from .services.deepslate_render_manager import DeepslateRenderManager
 from .services.lang_manager import LangManager
 from .utils.config import Config
 from .commands.get_command import GetCommand
@@ -44,6 +45,7 @@ class LitematicPlugin(Star):
         self.file_manager: FileManager = FileManager(self.config, self.category_manager)
         self.render_manager: RenderManager = RenderManager(self.config)
         self.render_3d_manager: Render3DManager = Render3DManager(self.config)
+        self.deepslate_render_manager: DeepslateRenderManager = DeepslateRenderManager(self.config)
         self.lang_manager: LangManager = LangManager(plugin_dir)
         
         # 初始化命令处理器
@@ -53,8 +55,18 @@ class LitematicPlugin(Star):
         self.get_command: GetCommand = GetCommand(self.file_manager)
         self.material_command: MaterialCommand = MaterialCommand(self.file_manager, self.category_manager, self.lang_manager)
         self.info_command: InfoCommand = InfoCommand(self.file_manager, self.category_manager)
-        self.preview_command: PreviewCommand = PreviewCommand(self.file_manager, self.render_manager)
-        self.render3d_command: Render3DCommand = Render3DCommand(self.file_manager, self.render_3d_manager)
+        self.preview_command: PreviewCommand = PreviewCommand(
+            self.file_manager,
+            self.render_manager,
+            self.deepslate_render_manager,
+            self.config,
+        )
+        self.render3d_command: Render3DCommand = Render3DCommand(
+            self.file_manager,
+            self.render_3d_manager,
+            self.deepslate_render_manager,
+            self.config,
+        )
         
         # 保留原有变量以保持兼容性
         self.litematic_dir: str = self.config.get_litematic_dir()

@@ -42,7 +42,10 @@ class Config:
                 "resource_dir": os.path.join(self.plugin_dir, "resource"),
                 "use_block_models": self.astrbot_config.get("use_block_models", True),
                 "max_gif_size_bytes": self.astrbot_config.get("max_gif_size_bytes", 5 * 1024 * 1024),
-                "webui_max_file_size_bytes": self.astrbot_config.get("webui_max_file_size_bytes", 32 * 1024 * 1024)
+                "webui_max_file_size_bytes": self.astrbot_config.get("webui_max_file_size_bytes", 32 * 1024 * 1024),
+                "render_backend": self.astrbot_config.get("render_backend", "deepslate"),
+                "deepslate_browser_executable": self.astrbot_config.get("deepslate_browser_executable", "/usr/bin/chromium"),
+                "deepslate_render_timeout_ms": self.astrbot_config.get("deepslate_render_timeout_ms", 120000)
             }
         else:
             # 默认配置（向后兼容）
@@ -54,7 +57,10 @@ class Config:
                 "resource_dir": os.path.join(self.plugin_dir, "resource"),
                 "use_block_models": True,  # 默认启用方块模型
                 "max_gif_size_bytes": 5 * 1024 * 1024,  # 最大GIF文件大小（字节），默认5MB
-                "webui_max_file_size_bytes": 32 * 1024 * 1024
+                "webui_max_file_size_bytes": 32 * 1024 * 1024,
+                "render_backend": "deepslate",
+                "deepslate_browser_executable": "/usr/bin/chromium",
+                "deepslate_render_timeout_ms": 120000
             }
         
         # 创建临时目录

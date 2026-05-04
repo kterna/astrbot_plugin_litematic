@@ -9,6 +9,8 @@ from astrbot.api.message_components import Image
 
 from ..services.file_manager import FileManager
 from ..services.render_3d_manager import Render3DManager
+from ..services.deepslate_render_manager import DeepslateRenderManager
+from ..utils.config import Config
 from ..utils.types import CategoryType, FilePath, MessageResponse
 from ..utils.exceptions import (
     CategoryNotFoundError, 
@@ -20,7 +22,13 @@ from ..utils.exceptions import (
 class Render3DCommand:
     """实现3D渲染命令"""
     
-    def __init__(self, file_manager: FileManager, render_3d_manager: Render3DManager) -> None:
+    def __init__(
+        self,
+        file_manager: FileManager,
+        render_3d_manager: Render3DManager,
+        deepslate_render_manager: Optional[DeepslateRenderManager] = None,
+        config: Optional[Config] = None,
+    ) -> None:
         """
         初始化3D渲染命令
         
@@ -30,6 +38,8 @@ class Render3DCommand:
         """
         self.file_manager = file_manager
         self.render_3d_manager = render_3d_manager
+        self.deepslate_render_manager = deepslate_render_manager
+        self.config = config
     
     async def execute(self, event: AstrMessageEvent, category: CategoryType = "", filename: str = "", 
                      animation_type: str = "rotation", frames: int = 36, duration: int = 100,
@@ -89,17 +99,15 @@ class Render3DCommand:
             # 获取文件路径
             file_path: FilePath = await self.file_manager.get_litematic_file_async(category, filename)
             
-            # 渲染3D动画
-            gif_path = await self.render_3d_manager.render_litematic_3d_async(
-                file_path, 
-                animation_type=animation_type,
-                frames=frames,
-                duration=duration,
-                elevation=elevation,
-                optimize=True,
-                window_size=window_size,
-                native_textures=native_textures,
-                native_max_size=native_max_size
+            gif_path = await self._render_3d(
+                file_path,
+                animation_type,
+                frames,
+                duration,
+                elevation,
+                window_size,
+                native_textures,
+                native_max_size,
             )
             
             # 准备消息链
@@ -213,3 +221,43 @@ class Render3DCommand:
             raise ValueError(f"分辨率必须在 {min_size}x{min_size} 到 {max_size}x{max_size} 之间")
 
         return (width, height), False, None
+
+    async def _render_3d(
+        self,
+        file_path: FilePath,
+        animation_type: str,
+        frames: int,
+        duration: int,
+        elevation: float,
+        window_size: Optional[Tuple[int, int]],
+        native_textures: bool,
+        native_max_size: Optional[Tuple[int, int]],
+    ) -> str:
+        backend = self.config.get_config_value("render_backend", "deepslate") if self.config else "deepslate"
+        if backend == "deepslate" and self.deepslate_render_manager and self.deepslate_render_manager.is_available():
+            try:
+                return await asyncio.to_thread(
+                    self.deepslate_render_manager.render_litematic_gif,
+                    file_path,
+                    animation_type,
+                    frames,
+                    duration,
+                    elevation,
+                    window_size,
+                    native_textures,
+                    native_max_size,
+                )
+            except Exception as exc:
+                logger.warning(f"Deepslate 3D 渲染失败，回退 PyVista 后端: {exc}")
+
+        return await self.render_3d_manager.render_litematic_3d_async(
+            file_path,
+            animation_type=animation_type,
+            frames=frames,
+            duration=duration,
+            elevation=elevation,
+            optimize=True,
+            window_size=window_size,
+            native_textures=native_textures,
+            native_max_size=native_max_size,
+        )

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Litematic Render Worker</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #101214;
+      }
+
+      #renderCanvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+    <script src="../webui/vendor/deepslate.umd.js"></script>
+    <script src="../webui/vendor/gl-matrix-min.js"></script>
+    <script src="../webui/vendor/assets.js"></script>
+    <script src="../webui/vendor/opaque.js"></script>
+    <script>
+      if (typeof assets !== "undefined") {
+        window.LITEMATIC_ASSETS = assets;
+      }
+      if (typeof OPAQUE_BLOCKS !== "undefined") {
+        window.LITEMATIC_OPAQUE_BLOCKS = OPAQUE_BLOCKS;
+        window.LITEMATIC_TRANSPARENT_BLOCKS = TRANSPARENT_BLOCKS;
+        window.LITEMATIC_NON_SELF_CULLING = NON_SELF_CULLING;
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+    <img id="atlasImage" src="../webui/vendor/atlas.png" hidden alt="" />
+    <script src="./worker.js"></script>
+  </body>
+</html>
