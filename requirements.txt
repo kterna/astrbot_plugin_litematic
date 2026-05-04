@@ -2,3 +2,4 @@ litemapy
 pyvista
 numpy
 pillow
+playwright

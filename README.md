@@ -105,8 +105,27 @@ WebUI 只读取插件已有文件，不会修改、删除或重新保存投影�
 
 1. 确保已安装 AstrBot
 2. 将插件文件夹 `astrbot_plugin_litematic` 复制到 AstrBot 的 `data/plugins` 目录
-3. 重启 AstrBot
-4. 使用 `/plugin litematic` 命令查看插件是否正确加载
+3. 安装插件 Python 依赖：`pip install -r requirements.txt`
+4. 如需使用 Deepslate 命令渲染，安装 Chromium 浏览器
+5. 重启 AstrBot
+6. 使用 `/plugin litematic` 命令查看插件是否正确加载
+
+### Deepslate 渲染依赖
+
+`/投影预览` 和 `/投影3D` 默认会优先使用 Deepslate 后端。该后端需要两类依赖：
+
+- Python 包：`playwright`，已写入 `requirements.txt`
+- 系统浏览器：Chromium，默认路径为 `/usr/bin/chromium`
+
+Debian/Ubuntu 或 AstrBot Docker 容器内可执行：
+
+```bash
+pip install -r requirements.txt
+apt-get update
+apt-get install -y chromium
+```
+
+如果 Chromium 安装在其他路径，请在插件配置中修改 `deepslate_browser_executable`。如果不想安装无头浏览器，可将 `render_backend` 设置为 `python`，插件会只使用旧 Python/PyVista 渲染后端。
 
 ## 配置说明
 
